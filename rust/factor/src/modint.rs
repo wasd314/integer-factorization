@@ -8,42 +8,42 @@ macro_rules! impl_modint {
             #[derive(Debug, Clone, Copy)]
             pub struct ModInt {
                 /// N, modulus
-                n: U1,
+                n: $u1,
                 /// R^1 % N, where R := 2^`U1::BITS`
-                r1: U1,
+                r1: $u1,
                 /// R^2 % N
-                r2: U1,
+                r2: $u1,
                 /// -(N^-1) % R
-                n_: U1,
+                n_: $u1,
             }
 
             pub type U0 = $u0;
             pub type U1 = $u1;
 
             /// `(x * y) >> U1::BITS`
-            pub fn multiply_high(x: U1, y: U1) -> U1 {
-                let hx = (x >> U0::BITS) as U0;
-                let lx = x as U0;
-                let hy = (y >> U0::BITS) as U0;
-                let ly = y as U0;
-                let mul_high = |x1: U0, x2: U0| (x1 as U1 * x2 as U1) >> U0::BITS;
-                let mut ans = hx as U1 * hy as U1;
+            pub fn multiply_high(x: $u1, y: $u1) -> $u1 {
+                let hx = (x >> <$u0>::BITS) as $u0;
+                let lx = x as $u0;
+                let hy = (y >> <$u0>::BITS) as $u0;
+                let ly = y as $u0;
+                let mul_high = |x1: $u0, x2: $u0| (x1 as $u1 * x2 as $u1) >> <$u0>::BITS;
+                let mut ans = hx as $u1 * hy as $u1;
                 ans += mul_high(hx, ly);
                 ans += mul_high(lx, hy);
-                let m = hx.wrapping_mul(ly) as U1 + lx.wrapping_mul(hy) as U1 + mul_high(lx, ly);
-                ans += m >> U0::BITS;
+                let m = hx.wrapping_mul(ly) as $u1 + lx.wrapping_mul(hy) as $u1 + mul_high(lx, ly);
+                ans += m >> <$u0>::BITS;
                 ans
             }
 
             impl ModInt {
-                pub fn new(n: U1) -> Self {
-                    assert_eq!(n >> (U1::BITS - 1), 0);
+                pub fn new(n: $u1) -> Self {
+                    assert_eq!(n >> (<$u1>::BITS - 1), 0);
                     assert_eq!(n & 1, 1, "n = {n} should be odd");
 
                     let n_ = {
                         // n * n == 1 mod 2^2
                         let mut n_inv = Wrapping(n);
-                        for _ in 0..U1::BITS.ilog2() - 1 {
+                        for _ in 0..<$u1>::BITS.ilog2() - 1 {
                             n_inv *= Wrapping(2) - n_inv * Wrapping(n);
                         }
                         (-n_inv).0
@@ -51,7 +51,7 @@ macro_rules! impl_modint {
                     let r1 = n.wrapping_neg() % n;
                     let r2 = {
                         let mut r2 = r1;
-                        for _ in 0..U1::BITS {
+                        for _ in 0..<$u1>::BITS {
                             r2 <<= 1;
                             if r2 >= n {
                                 r2 -= n;
@@ -63,7 +63,7 @@ macro_rules! impl_modint {
                     Self { n, r1, r2, n_ }
                 }
 
-                pub fn mod_n(&self, x: U1) -> U1 {
+                pub fn mod_n(&self, x: $u1) -> $u1 {
                     if x < self.n {
                         x
                     } else if x - self.n < self.n {
@@ -76,7 +76,7 @@ macro_rules! impl_modint {
                 }
 
                 /// Reduce(rx * ry) -> r(xy)
-                pub fn multiply_reduce(&self, rx: U1, ry: U1) -> U1 {
+                pub fn multiply_reduce(&self, rx: $u1, ry: $u1) -> $u1 {
                     let t_ = rx.wrapping_mul(ry).wrapping_mul(self.n_);
                     let t = multiply_high(rx, ry)
                         + multiply_high(t_, self.n)
@@ -84,31 +84,31 @@ macro_rules! impl_modint {
                     self.mod_n(t)
                 }
                 /// Reduce: x * R^{-1} % N
-                pub fn reduce(&self, rx: U1) -> U1 {
+                pub fn reduce(&self, rx: $u1) -> $u1 {
                     self.multiply_reduce(rx, 1)
                 }
                 /// Montgomery representation of x.
                 /// x -> rx = Reduce(x * r^2)
-                pub fn mr(&self, x: U1) -> U1 {
+                pub fn mr(&self, x: $u1) -> $u1 {
                     self.multiply_reduce(x % self.n, self.r2)
                 }
-                pub fn val(&self, rx: U1) -> U1 {
+                pub fn val(&self, rx: $u1) -> $u1 {
                     self.reduce(rx)
                 }
 
-                pub fn add(&self, rx: U1, ry: U1) -> U1 {
+                pub fn add(&self, rx: $u1, ry: $u1) -> $u1 {
                     self.mod_n(rx + ry)
                 }
-                pub fn sub(&self, rx: U1, ry: U1) -> U1 {
+                pub fn sub(&self, rx: $u1, ry: $u1) -> $u1 {
                     if rx >= ry { rx - ry } else { rx + self.n - ry }
                 }
-                pub fn neg(&self, rx: U1) -> U1 {
+                pub fn neg(&self, rx: $u1) -> $u1 {
                     self.sub(0, rx)
                 }
-                pub fn mul(&self, rx: U1, ry: U1) -> U1 {
+                pub fn mul(&self, rx: $u1, ry: $u1) -> $u1 {
                     self.multiply_reduce(rx, ry)
                 }
-                pub fn pow(&self, rx: U1, mut e: U1) -> U1 {
+                pub fn pow(&self, rx: $u1, mut e: $u1) -> $u1 {
                     let mut ans = self.r1;
                     let mut b = rx;
                     while e > 0 {
@@ -128,12 +128,12 @@ macro_rules! impl_modint {
 
                 #[test]
                 fn check_modint_op() {
-                    for n0 in (1..1 << (U1::BITS - 1).min(10))
+                    for n0 in (1..1 << (<$u1>::BITS - 1).min(10))
                         .flat_map(|x| [x, !x >> 1])
                         .filter(|n| n % 2 == 1)
                     {
                         let mont = ModInt::new(n0);
-                        let pow = |rx: U1, e: U1| {
+                        let pow = |rx: $u1, e: $u1| {
                             let mut ans = mont.mr(1);
                             for _ in 0..e {
                                 ans = mont.mul(ans, rx);
