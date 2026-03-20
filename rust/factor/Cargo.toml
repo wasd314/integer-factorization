@@ -10,3 +10,4 @@ name = "factor"
 
 [[bin]]
 name = "factor"
+path = "src/bin/main.rs"
