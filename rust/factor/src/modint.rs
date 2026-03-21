@@ -8,13 +8,13 @@ macro_rules! impl_modint {
             #[derive(Debug, Clone, Copy)]
             pub struct ModInt {
                 /// N, modulus
-                n: $u1,
-                /// R^1 % N, where R := 2^`U1::BITS`
-                r1: $u1,
+                pub n: $u1,
+                /// R^1 % N, where R := 2^`U1::BITS`, or MR(1)
+                pub r1: $u1,
                 /// R^2 % N
-                r2: $u1,
+                pub r2: $u1,
                 /// -(N^-1) % R
-                n_: $u1,
+                pub n_: $u1,
             }
 
             pub type U0 = $u0;
