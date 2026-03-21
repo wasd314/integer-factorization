@@ -1,5 +1,6 @@
 pub mod modint;
 pub mod primality;
+pub mod wrapper;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
