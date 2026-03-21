@@ -1,4 +1,5 @@
 pub mod modint;
+pub mod pollard_rho;
 pub mod primality;
 pub mod utility;
 pub mod wrapper;

@@ -35,5 +35,6 @@ pub fn factorize<F: FnMut(u128) -> u128>(mut n: u128, f: &mut F) -> Vec<u128> {
             ans.push(p);
         }
     }
+    ans.sort();
     ans
 }
