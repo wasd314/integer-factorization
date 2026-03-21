@@ -38,7 +38,46 @@ pub fn jacobi(a: i128, mut n: u128) -> i8 {
 }
 
 /// Lucas sequence (U(P, Q), V(P, Q)) の n 項目．
-pub fn calc_lucas(p: u128, q: u128, mut n: u128, mo: &ModInt) -> (u128, u128) {
+///
+/// Montgomery form で返す．
+pub fn calc_lucas(p: u128, q: u128, n: u128, mo: &ModInt) -> (u128, u128) {
+    let (rp, rq) = (mo.mr(p), mo.mr(q));
+    let rd = mo.sub(mo.mul(rp, rp), mo.mul(rq, mo.mr(4)));
+    let (mut ru0, mut ru1) = (mo.mr(0), mo.r1);
+    let (mut rv0, mut rv1) = (mo.mr(2), rp);
+    // 2 Q^n, initially 2
+    let mut rqs2 = mo.add(mo.r1, mo.r1);
+
+    let half = |x: u128| if x & 1 == 0 { x >> 1 } else { (x + mo.n) >> 1 };
+    let mul3 = |rx, ry, rz| mo.mul(mo.mul(rx, ry), rz);
+    for i in (0..u128::BITS - n.leading_zeros()).rev() {
+        if n >> i & 1 == 1 {
+            // (n, n+1, 2 Q^n) => (2n+1, 2n+2, 2 Q^{2n+1})
+            let (ru3, rv3) = (
+                mo.sub(mo.mul(ru1, ru1), mul3(rq, ru0, ru0)),
+                half(mo.add(mo.mul(rv0, rv1), mul3(rd, ru0, ru1))),
+            );
+            let (ru4, rv4) = (mo.mul(ru1, rv1), mo.sub(mo.mul(rv1, rv1), mo.mul(rqs2, rq)));
+            rqs2 = half(mul3(rqs2, rqs2, rq));
+            (ru0, ru1, rv0, rv1) = (ru3, ru4, rv3, rv4);
+        } else {
+            // (n, n+1, 2 Q^n) => (2n, 2n+1, 2 Q^{2n})
+            let (ru2, rv2) = (mo.mul(ru0, rv0), mo.sub(mo.mul(rv0, rv0), rqs2));
+            let (ru3, rv3) = (
+                mo.sub(mo.mul(ru1, ru1), mul3(rq, ru0, ru0)),
+                half(mo.add(mo.mul(rv0, rv1), mul3(rd, ru0, ru1))),
+            );
+            rqs2 = half(mo.mul(rqs2, rqs2));
+            (ru0, ru1, rv0, rv1) = (ru2, ru3, rv2, rv3);
+        }
+    }
+    (ru0, rv0)
+}
+
+/// Lucas sequence (U(P, Q), V(P, Q)) の n 項目．
+///
+/// Montgomery form で返す．
+pub fn calc_lucas_with_matrix(p: u128, q: u128, mut n: u128, mo: &ModInt) -> (u128, u128) {
     let (rp, rq) = (mo.mr(p), mo.mr(q));
 
     let mat_mul = |a: [[u128; 2]; 2], b: [[u128; 2]; 2]| {
@@ -66,7 +105,7 @@ pub fn calc_lucas(p: u128, q: u128, mut n: u128, mo: &ModInt) -> (u128, u128) {
     (ru, rv)
 }
 
-/// Strong Lucas probable prime test with parameters (P, Q) defined by Selfridge's Method A.
+/// Strong Lucas primality test with parameters (P, Q) defined by Selfridge's Method A.
 pub fn is_lucas_sprp(n: u128) -> bool {
     if n.is_multiple_of(2) || n == 1 {
         return false;
@@ -185,5 +224,23 @@ mod tests {
                 5459, 5777, 10877, 16109, 18971, 22499, 24569, 25199, 40309, 58519, 75077, 97439
             ]
         );
+    }
+
+    #[test]
+    fn lucas_sequence() {
+        let nn = (1 << 61) - 1;
+        let mo = ModInt::new(nn);
+        println!("{mo:?}");
+        let p = 1;
+        for qi in -10..10 {
+            let q = if qi >= 0 { qi } else { qi + nn as i128 } as _;
+            for n in 0..100 {
+                assert_eq!(
+                    calc_lucas(p, q, n, &mo),
+                    calc_lucas_with_matrix(p, q, n, &mo),
+                    "({p}, {qi})_{n}"
+                );
+            }
+        }
     }
 }
