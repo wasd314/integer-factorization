@@ -1,5 +1,6 @@
 use crate::modint::u128::ModInt;
 
+/// Miller–Rabin primality test.
 pub fn is_sprp(n: u128, bases: &[u128]) -> bool {
     if n.is_multiple_of(2) || n == 1 {
         return false;
@@ -27,6 +28,7 @@ pub fn is_sprp(n: u128, bases: &[u128]) -> bool {
     true
 }
 
+/// Primality test based on Miller–Rabin primality test.
 pub fn is_prime(n: u128) -> bool {
     if n <= 2 {
         return n == 2;
