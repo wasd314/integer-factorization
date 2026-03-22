@@ -78,3 +78,99 @@ impl Factorize for PollardRho<Floyd> {
         }
     }
 }
+
+impl Factorize for PollardRho<Brent> {
+    /// Pollard's rho with Brent's cycle detection.
+    fn find_factor(&mut self, n: u128) -> u128 {
+        // n: odd composite
+        let mo = ModInt::new(n);
+        let mut rc = 0;
+        loop {
+            rc += 1;
+            let f = |rx| mo.add(mo.mul(rx, rx), rc);
+            if self.batch_gcd {
+                let batch_bit = (u128::BITS - n.leading_zeros()) as u128 / 8;
+                let batch = 1u128 << batch_bit;
+
+                let mut rx = rc;
+                // combine head
+                let mut combined = 1;
+                for i in 0..batch_bit {
+                    // rx = f^{o 2^i} (0) = a[2^i]
+                    let mut ry = rx;
+                    for _ in 1..=1 << i {
+                        ry = f(ry);
+                        combined = mo.mul(combined, rx.abs_diff(ry));
+                    }
+                    rx = ry;
+                }
+                let d = gcd(n, combined);
+                if d == n {
+                    // replay head
+                    let mut rx = rc;
+                    for i in 0.. {
+                        // rx = f^{o 2^i} (0) = a[2^i]
+                        let mut ry = rx;
+                        for _ in 1..=1 << i {
+                            ry = f(ry);
+                            let d = gcd(n, rx.abs_diff(ry));
+                            if d != 1 && d != n {
+                                return d;
+                            }
+                        }
+                        rx = ry;
+                    }
+                } else if d != 1 {
+                    return d;
+                }
+
+                // combine batch
+                let mut checkpoint = (rx, rx);
+                'outer: for i in batch_bit.. {
+                    // rx = f^{o 2^i} (0) = a[2^i]
+                    let mut ry = rx;
+                    for _ in 0..1 << (i - batch_bit) {
+                        let mut combined = 1;
+                        for _ in 0..batch {
+                            ry = f(ry);
+                            combined = mo.mul(combined, rx.abs_diff(ry));
+                        }
+                        let d = gcd(n, combined);
+                        if d == n {
+                            break 'outer;
+                        } else if d != 1 {
+                            return d;
+                        }
+                        checkpoint = (rx, ry);
+                    }
+                    rx = ry;
+                }
+                // replay batch
+                let (rx, mut ry) = checkpoint;
+                for _ in 0..batch {
+                    ry = f(ry);
+                    let d = gcd(n, rx.abs_diff(ry));
+                    if d != 1 && d != n {
+                        return d;
+                    }
+                }
+            } else {
+                // not batch
+                let mut rx = rc;
+                for i in 0.. {
+                    // rx = f^{o 2^i} (0) = a[2^i]
+                    let mut ry = rx;
+                    for _j in 1..=1 << i {
+                        ry = f(ry);
+                        // ry = a[2^i + j]
+                        let d = gcd(n, rx.abs_diff(ry));
+                        if d != 1 && d != n {
+                            return d;
+                        }
+                    }
+                    rx = ry;
+                }
+            }
+        }
+    }
+}
