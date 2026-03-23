@@ -42,9 +42,9 @@ impl Sieve {
     }
 }
 
-/// Splitmix 64-bit PRNG, for seeding.
+/// SplitMix 64-bit PRNG, for seeding.
 ///
-/// cf. https://prng.di.unimi.it/splitmix64.c
+/// cf. <https://prng.di.unimi.it/splitmix64.c>
 #[derive(Debug, Clone, Copy)]
 pub struct SplitMix(u64);
 
@@ -61,7 +61,7 @@ impl SplitMix {
     }
 }
 
-// Small Fast Chaotic PRNG.
+/// Small Fast Chaotic PRNG.
 #[derive(Debug, Clone, Copy)]
 pub struct Sfc64 {
     a: u64,
@@ -94,6 +94,33 @@ impl Sfc64 {
     }
     pub fn next_u128(&mut self) -> u128 {
         (self.next_u64() as u128) << 64 | self.next_u64() as u128
+    }
+    pub fn next_range(&mut self, rg: impl RangeBounds<u128>) -> u128 {
+        let l = match rg.start_bound() {
+            std::ops::Bound::Included(&l) => l,
+            std::ops::Bound::Excluded(&l) => l - 1,
+            std::ops::Bound::Unbounded => 0,
+        };
+        let r = match rg.end_bound() {
+            std::ops::Bound::Included(&r) => r.wrapping_add(1),
+            std::ops::Bound::Excluded(&r) => r,
+            std::ops::Bound::Unbounded => 0,
+        };
+        if l == r {
+            return self.next_u128();
+        }
+        let d = r.wrapping_sub(l);
+        if d == 1 {
+            return l;
+        }
+        // l..r = l + (0..d)
+        let shr = (d - 1).leading_zeros();
+        loop {
+            let x = self.next_u128() >> shr;
+            if x < d {
+                break l.wrapping_add(x);
+            }
+        }
     }
 }
 
@@ -170,7 +197,7 @@ mod tests {
         );
         assert_eq!(
             s.prime_range(19..39).collect::<Vec<_>>(),
-            vec![19, 23, 29, 31, 37,]
+            vec![19, 23, 29, 31, 37]
         );
     }
 
@@ -180,5 +207,18 @@ mod tests {
         assert_eq!(rng.next_u64(), 16294208416658607535);
         assert_eq!(rng.next_u64(), 7960286522194355700);
         assert_eq!(rng.next_u64(), 487617019471545679);
+    }
+
+    #[test]
+    fn test_range() {
+        let mut rng = Sfc64::new(0);
+        for l in 0..10 {
+            for r in l + 1..l + 100 {
+                for _ in 0..10000 {
+                    let x = rng.next_range(l..r);
+                    assert!((l..r).contains(&x), "x = {x} not in ({l}..{r})");
+                }
+            }
+        }
     }
 }
