@@ -174,3 +174,29 @@ impl Factorize for PollardRho<Brent> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn check(n: u128, batch_gcd: bool) {
+        let mut f1 = PollardRho::<Floyd>::new(batch_gcd);
+        let mut f2 = PollardRho::<Brent>::new(batch_gcd);
+        let ans1 = f1.factorize(n);
+        let ans2 = f2.factorize(n);
+        assert_eq!(ans1, ans2);
+        let prod = ans1.iter().product::<u128>();
+        assert_eq!(prod, n);
+    }
+
+    #[test]
+    fn check_some() {
+        for n in [
+            12345701 * 12345709,
+            1234567891 * 1234567907,
+            123456789059 * 123456789061,
+        ] {
+            check(n, true);
+            check(n, false);
+        }
+    }
+}
