@@ -1,30 +1,30 @@
-use std::marker::PhantomData;
-
 use crate::{modint::u128::ModInt, utility::gcd, wrapper::Factorize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Brent {}
+/// Floyd's cycle detection for Pollard's rho.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Floyd;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Floyd {}
+/// Brent's cycle detection for Pollard's rho.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Brent;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PollardRho<T> {
-    _cd: PhantomData<fn() -> T>,
+    #[allow(unused)]
+    cycle_detection: T,
     pub batch_gcd: bool,
 }
 
 impl<T> PollardRho<T> {
-    pub fn new(batch_gcd: bool) -> Self {
+    pub fn new(cycle_detection: T, batch_gcd: bool) -> Self {
         Self {
-            _cd: PhantomData,
+            cycle_detection,
             batch_gcd,
         }
     }
 }
 
 impl Factorize for PollardRho<Floyd> {
-    /// Pollard's rho with Floyd's cycle detection.
     fn find_factor(&mut self, n: u128) -> u128 {
         // n: odd composite
         let mo = ModInt::new(n);
@@ -80,7 +80,6 @@ impl Factorize for PollardRho<Floyd> {
 }
 
 impl Factorize for PollardRho<Brent> {
-    /// Pollard's rho with Brent's cycle detection.
     fn find_factor(&mut self, n: u128) -> u128 {
         // n: odd composite
         let mo = ModInt::new(n);
@@ -179,8 +178,8 @@ impl Factorize for PollardRho<Brent> {
 mod tests {
     use super::*;
     fn check(n: u128, batch_gcd: bool) {
-        let mut f1 = PollardRho::<Floyd>::new(batch_gcd);
-        let mut f2 = PollardRho::<Brent>::new(batch_gcd);
+        let mut f1 = PollardRho::new(Floyd, batch_gcd);
+        let mut f2 = PollardRho::new(Brent, batch_gcd);
         let ans1 = f1.factorize(n);
         let ans2 = f2.factorize(n);
         assert_eq!(ans1, ans2);
@@ -189,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn check_some() {
+    fn factor_small() {
         for n in [
             12345701 * 12345709,
             1234567891 * 1234567907,
