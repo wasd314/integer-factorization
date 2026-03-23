@@ -42,6 +42,61 @@ impl Sieve {
     }
 }
 
+/// Splitmix 64-bit PRNG, for seeding.
+///
+/// cf. https://prng.di.unimi.it/splitmix64.c
+#[derive(Debug, Clone, Copy)]
+pub struct SplitMix(u64);
+
+impl SplitMix {
+    pub fn new(seed: u64) -> Self {
+        Self(seed)
+    }
+    pub fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9e3779b97f4a7c15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
+        z ^ (z >> 31)
+    }
+}
+
+// Small Fast Chaotic PRNG.
+#[derive(Debug, Clone, Copy)]
+pub struct Sfc64 {
+    a: u64,
+    b: u64,
+    c: u64,
+    counter: u64,
+}
+
+impl Sfc64 {
+    pub fn new(seed: u64) -> Self {
+        let mut sm = SplitMix::new(seed);
+        let mut g = Self {
+            a: sm.next_u64(),
+            b: sm.next_u64(),
+            c: sm.next_u64(),
+            counter: 1,
+        };
+        for _ in 0..20 {
+            g.next_u64();
+        }
+        g
+    }
+    pub fn next_u64(&mut self) -> u64 {
+        let ans = self.a.wrapping_add(self.b).wrapping_add(self.counter);
+        self.counter += 1;
+        self.a = self.b ^ (self.b >> 11);
+        self.b = self.c.wrapping_add(self.c << 3);
+        self.c = self.c.rotate_left(24).wrapping_add(ans);
+        ans
+    }
+    pub fn next_u128(&mut self) -> u128 {
+        (self.next_u64() as u128) << 64 | self.next_u64() as u128
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,5 +172,13 @@ mod tests {
             s.prime_range(19..39).collect::<Vec<_>>(),
             vec![19, 23, 29, 31, 37,]
         );
+    }
+
+    #[test]
+    fn test_split_mix() {
+        let mut rng = SplitMix::new(0);
+        assert_eq!(rng.next_u64(), 16294208416658607535);
+        assert_eq!(rng.next_u64(), 7960286522194355700);
+        assert_eq!(rng.next_u64(), 487617019471545679);
     }
 }
