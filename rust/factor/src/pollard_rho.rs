@@ -1,4 +1,7 @@
-use crate::{modint::u128::ModInt, utility::gcd, wrapper::Factorize};
+use crate::{
+    modint::u128::{ModInt, gcd},
+    wrapper::Factorize,
+};
 
 /// Floyd's cycle detection for Pollard's rho.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
