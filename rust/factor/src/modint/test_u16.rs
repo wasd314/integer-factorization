@@ -3,7 +3,6 @@
 
 use std::num::Wrapping;
 
-type U0 = u8;
 type U1 = u16;
 
 #[derive(Debug, Clone, Copy)]
@@ -18,30 +17,27 @@ struct ModInt {
     n_: U1,
 }
 
+pub fn gcd(mut x: U1, mut y: U1) -> U1 {
+    while x != 0 {
+        (x, y) = (y % x, x);
+    }
+    y
+}
+
 /// `(x * y) >> U1::BITS`
 fn multiply_high(x: U1, y: U1) -> U1 {
-    let hx = (x >> U0::BITS) as U0;
-    let lx = x as U0;
-    let hy = (y >> U0::BITS) as U0;
-    let ly = y as U0;
-    let mul_high = |x1: U0, x2: U0| (x1 as U1 * x2 as U1) >> U0::BITS;
-    let mut ans = hx as U1 * hy as U1;
-    ans += mul_high(hx, ly);
-    ans += mul_high(lx, hy);
-    let m = hx.wrapping_mul(ly) as U1 + lx.wrapping_mul(hy) as U1 + mul_high(lx, ly);
-    ans += m >> U0::BITS;
-    ans
+    x.carrying_mul(y, 0).1
 }
 
 impl ModInt {
-    fn new(n: U1) -> Self {
+    pub fn new(n: U1) -> Self {
         assert_eq!(n >> (U1::BITS - 1), 0);
         assert_eq!(n & 1, 1, "n = {n} should be odd");
 
         let n_ = {
             // n * n == 1 mod 2^2
             let mut n_inv = Wrapping(n);
-            for _ in 0..u16::BITS.ilog2() - 1 {
+            for _ in 0..U1::BITS.ilog2() - 1 {
                 n_inv *= Wrapping(2) - n_inv * Wrapping(n);
             }
             (-n_inv).0
@@ -61,7 +57,7 @@ impl ModInt {
         Self { n, r1, r2, n_ }
     }
 
-    fn mod_n(&self, x: U1) -> U1 {
+    pub fn mod_n(&self, x: U1) -> U1 {
         if x < self.n {
             x
         } else if x - self.n < self.n {
@@ -73,40 +69,41 @@ impl ModInt {
         }
     }
 
-    /// Reduce(rx * ry) -> r(xy)
-    fn multiply_reduce(&self, rx: U1, ry: U1) -> U1 {
+    /// Reduce(rx * ry) = r(xy)
+    pub fn multiply_reduce(&self, rx: U1, ry: U1) -> U1 {
         let t_ = rx.wrapping_mul(ry).wrapping_mul(self.n_);
-        let t = multiply_high(rx, ry)
-            + multiply_high(t_, self.n)
-            + if rx.wrapping_mul(ry) != 0 { 1 } else { 0 };
+        let t = multiply_high(rx, ry) + multiply_high(t_, self.n) + rx.wrapping_mul(ry).min(1);
         self.mod_n(t)
     }
     /// Reduce: x * R^{-1} % N
-    fn reduce(&self, rx: U1) -> U1 {
+    pub fn reduce(&self, rx: U1) -> U1 {
         self.multiply_reduce(rx, 1)
     }
     /// Montgomery representation of x.
     /// x -> rx = Reduce(x * r^2)
-    fn mr(&self, x: U1) -> U1 {
+    pub fn mr(&self, x: U1) -> U1 {
         self.multiply_reduce(x % self.n, self.r2)
     }
-    fn val(&self, rx: U1) -> U1 {
+    pub fn val(&self, rx: U1) -> U1 {
         self.reduce(rx)
     }
+    pub fn one(&self) -> U1 {
+        self.r1
+    }
 
-    fn add(&self, rx: U1, ry: U1) -> U1 {
+    pub fn add(&self, rx: U1, ry: U1) -> U1 {
         self.mod_n(rx + ry)
     }
-    fn sub(&self, rx: U1, ry: U1) -> U1 {
+    pub fn sub(&self, rx: U1, ry: U1) -> U1 {
         if rx >= ry { rx - ry } else { rx + self.n - ry }
     }
-    fn neg(&self, rx: U1) -> U1 {
+    pub fn neg(&self, rx: U1) -> U1 {
         self.sub(0, rx)
     }
-    fn mul(&self, rx: U1, ry: U1) -> U1 {
+    pub fn mul(&self, rx: U1, ry: U1) -> U1 {
         self.multiply_reduce(rx, ry)
     }
-    fn pow(&self, rx: U1, mut e: U1) -> U1 {
+    pub fn pow(&self, rx: U1, mut e: U1) -> U1 {
         let mut ans = self.r1;
         let mut b = rx;
         while e > 0 {
@@ -117,6 +114,18 @@ impl ModInt {
             e >>= 1;
         }
         ans
+    }
+    /// rx の逆元もしくは gcd(x, n).
+    pub fn inv(&self, rx: U1) -> Result<U1, U1> {
+        let mut x = (self.reduce(rx), 1, 0);
+        let mut y = (self.n, 0, 1);
+        while x.0 > 0 {
+            let q = y.0 / x.0;
+            let r = y.0 - x.0 * q;
+            (x, y) = ((r, y.1 - x.1 * q as i16, y.2 - x.2 * q as i16), x);
+        }
+        let (g, i) = (y.0, y.1.rem_euclid(self.n as _));
+        if g == 1 { Ok(self.mr(i as _)) } else { Err(g) }
     }
 }
 
@@ -141,8 +150,8 @@ fn check_modint_new() {
 
 #[test]
 fn check_modint_op() {
-    for n0 in (1..1 << (U1::BITS - 1)).filter(|n| n % 2 == 1) {
-        let mont = ModInt::new(n0);
+    for n in (1..1 << (U1::BITS - 1)).filter(|n| n % 2 == 1) {
+        let mont = ModInt::new(n);
         let pow = |rx: U1, e: U1| {
             let mut ans = mont.mr(1);
             for _ in 0..e {
@@ -150,13 +159,32 @@ fn check_modint_op() {
             }
             mont.mod_n(ans)
         };
-        for rx in (0..5.min(n0)).flat_map(|x| [x, mont.mr(x), mont.reduce(x)]) {
+        for rx in (0..5.min(n)).flat_map(|x| [x, mont.mr(x), mont.reduce(x)]) {
             assert_eq!(mont.mod_n(rx + mont.neg(rx)), 0);
             assert_eq!(mont.add(rx, mont.neg(rx)), 0);
             assert_eq!(mont.val(mont.mr(rx)), rx);
             assert_eq!(mont.mr(mont.val(rx)), rx);
             for e in 0..10 {
                 assert_eq!(mont.pow(rx, e), pow(rx, e));
+            }
+        }
+    }
+}
+
+#[test]
+fn check_modint_inv() {
+    for n in (1..1000).filter(|n| n % 2 == 1) {
+        let mo = ModInt::new(n);
+        for rx in 0..n {
+            let g = gcd(rx, n);
+            match mo.inv(rx) {
+                Ok(ry) => {
+                    assert_eq!(g, 1, "inv of rx = {rx} mod {n}");
+                    assert_eq!(mo.mul(rx, ry), mo.r1, "inv of rx = {rx} mod {n}");
+                }
+                Err(g_) => {
+                    assert_eq!(g_, g, "inv of rx = {rx} mod {n}");
+                }
             }
         }
     }
