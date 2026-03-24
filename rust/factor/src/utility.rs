@@ -1,9 +1,9 @@
 use std::ops::RangeBounds;
 
 /// 線形篩
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Sieve {
-    pub prime: Vec<usize>,
+    pub prime: Vec<u128>,
     pub lpf: Vec<usize>,
 }
 impl Sieve {
@@ -13,11 +13,11 @@ impl Sieve {
         for d in 2..n {
             if lpf[d] == 0 {
                 lpf[d] = d;
-                prime.push(d);
+                prime.push(d as _);
             }
-            let pd = lpf[d];
-            for &p in prime.iter().take_while(|&&p| p * d < n && p <= pd) {
-                lpf[p * d] = p;
+            let pd = lpf[d] as _;
+            for &p in prime.iter().take_while(|&&p| p as usize * d < n && p <= pd) {
+                lpf[p as usize * d] = p as usize;
             }
         }
         Self { prime, lpf }
@@ -25,7 +25,7 @@ impl Sieve {
     pub fn is_prime(&self, n: usize) -> bool {
         self.lpf[n] == n
     }
-    pub fn prime_range(&self, rb: impl RangeBounds<usize>) -> impl Iterator<Item = usize> {
+    pub fn prime_range(&self, rb: impl RangeBounds<u128>) -> impl Iterator<Item = u128> {
         self.prime
             .iter()
             .filter_map(move |&p| if rb.contains(&p) { Some(p) } else { None })
