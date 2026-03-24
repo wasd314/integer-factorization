@@ -3,6 +3,7 @@ use std::ops::RangeBounds;
 /// 線形篩
 #[derive(Debug)]
 pub struct Sieve {
+    pub prime: Vec<usize>,
     pub lpf: Vec<usize>,
 }
 impl Sieve {
@@ -19,19 +20,15 @@ impl Sieve {
                 lpf[p * d] = p;
             }
         }
-        Self { lpf }
+        Self { prime, lpf }
     }
     pub fn is_prime(&self, n: usize) -> bool {
         self.lpf[n] == n
     }
     pub fn prime_range(&self, rb: impl RangeBounds<usize>) -> impl Iterator<Item = usize> {
-        self.lpf.iter().enumerate().filter_map(move |(i, &e)| {
-            if i >= 2 && rb.contains(&i) && i == e {
-                Some(i)
-            } else {
-                None
-            }
-        })
+        self.prime
+            .iter()
+            .filter_map(move |&p| if rb.contains(&p) { Some(p) } else { None })
     }
 }
 
