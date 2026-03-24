@@ -127,6 +127,10 @@ impl ModInt {
         let (g, i) = (y.0, y.1.rem_euclid(self.n as _));
         if g == 1 { Ok(self.mr(i as _)) } else { Err(g) }
     }
+    pub fn div(&self, rx: U1, ry: U1) -> Result<U1, U1> {
+        let inv_ry = self.inv(ry)?;
+        Ok(self.mul(rx, inv_ry))
+    }
 }
 
 #[test]
