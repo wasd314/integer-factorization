@@ -1,3 +1,4 @@
+pub mod ecm;
 pub mod modint;
 pub mod pollard_rho;
 pub mod primality;
