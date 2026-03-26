@@ -114,6 +114,19 @@ impl Sfc64 {
     }
 }
 
+/// min i in (0..len) s.t. f(i) == true
+pub fn bisect_left<F: FnMut(usize) -> bool>(len: usize, mut f: F) -> usize {
+    if f(0) {
+        return 0;
+    }
+    let (mut ng, mut ok) = (0, len);
+    while ok > ng + 1 {
+        let mi = ng.midpoint(ok);
+        *(if f(mi) { &mut ok } else { &mut ng }) = mi;
+    }
+    ok
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
