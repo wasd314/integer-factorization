@@ -80,7 +80,7 @@ impl Curve {
         let add2 = self._mul(add, add);
         let sub = self._sub(t1, t2);
         let sub2 = self._mul(sub, sub);
-        (self._mul(diff.0, add2), self._mul(diff.1, sub2))
+        (self._mul(diff.1, add2), self._mul(diff.0, sub2))
     }
     /// [m] P.
     pub fn scale(&self, p: Point, m: u128) -> Point {
@@ -215,6 +215,37 @@ impl Factorize for Ecm {
             self.sieve = Sieve::new(self.b1 as _);
             self.b2 *= 2;
             eprintln!("({c0}, {c1}, {cn}), extended to {}, {}", self.b1, self.b2);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_scale() {
+        let n = (1 << 61) - 1;
+        // let n = 10007;
+        let mo = ModInt::new(n);
+        let mut rng = Sfc64::new(n as _);
+        let d = 100;
+        let same = |p: (u128, u128), q: (u128, u128)| mo.mul(p.0, q.1) == mo.mul(p.1, q.0);
+        for _ in 0..100 {
+            let s = rng.next_range(6..n - 6);
+            let Ok((c, p)) = Curve::init_suyama(s, mo) else {
+                continue;
+            };
+            assert!(same(c.double(p), c.scale(p, 2)));
+            let (mut p0, mut p1) = (c.zero(), p);
+            for i in 2..d {
+                let p2 = c.add(p1, p, p0);
+                assert!(same(p2, c.scale(p, i as u128)), "s = {s}, {p:?} * {i}");
+                assert!(
+                    same(c.double(p2), c.scale(p, 2 * i as u128)),
+                    "s = {s}, {p:?} * {i} * 2"
+                );
+                (p0, p1) = (p1, p2);
+            }
         }
     }
 }
