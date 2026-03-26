@@ -123,7 +123,7 @@ macro_rules! impl_modint {
                 while x.0 > 0 {
                     let q = y.0 / x.0;
                     let r = y.0 - x.0 * q;
-                    (x, y) = ((r, y.1 - x.1 * q as i16, y.2 - x.2 * q as i16), x);
+                    (x, y) = ((r, y.1 - x.1 * q as $i1, y.2 - x.2 * q as $i1), x);
                 }
                 let (g, i) = (y.0, y.1.rem_euclid(self.n as _));
                 if g == 1 { Ok(self.mr(i as _)) } else { Err(g) }
