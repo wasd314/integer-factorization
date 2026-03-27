@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{
     modint::u128::{ModInt, gcd},
     utility::{Sfc64, Sieve, bisect_left},
@@ -146,26 +148,30 @@ impl Ecm {
         if 1 < g && g < mo.n {
             return Some(g);
         }
+
         // Stage 2
-        let rs = [
+        const D: usize = 210;
+        const COPRIME_RS: [usize; 48] = [
             1, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
             101, 103, 107, 109, 113, 121, 127, 131, 137, 139, 143, 149, 151, 157, 163, 167, 169,
             173, 179, 181, 187, 191, 193, 197, 199, 209,
         ];
-        let d = 210;
-        let mut rem = vec![c.zero(); d * 2];
+        let b1 = self.b1 - self.b1 % D as u128;
+        // rem[r] = c.scale(point, b1 + r)
+        let mut rem = vec![c.zero(); D * 2];
+        rem[1] = c.scale(point, b1 + 1);
+        rem[3] = c.scale(point, b1 + 3);
         let p2 = c.double(point);
-        rem[1] = c.scale(point, self.b1 - self.b1 % d as u128 + 1);
-        rem[3] = c.scale(point, self.b1 - self.b1 % d as u128 + 3);
-        for i in 2..d {
+        for i in 2..D {
             rem[2 * i + 1] = c.add(rem[2 * i - 1], p2, rem[2 * i - 3]);
         }
-        let pd = c.scale(point, d as u128);
-        let w2 = self.b2 as usize / d - self.b1 as usize / d;
-        let mut acc = Vec::with_capacity((w2 + 2) * rs.len());
+        let pd = c.scale(point, D as u128);
+        let w2 = self.b2 as usize / D - self.b1 as usize / D;
+        let mut acc = Vec::with_capacity((w2 + 2) * COPRIME_RS.len());
         acc.push(1);
-        for r in rs {
-            let (mut p0, mut p1) = (rem[r], rem[d + r]);
+        for r in COPRIME_RS {
+            // check scale(point, r + d * i)
+            let (mut p0, mut p1) = (rem[r], rem[D + r]);
             acc.push(mo.mul(acc[acc.len() - 1], p0.1));
             acc.push(mo.mul(acc[acc.len() - 1], p1.1));
             for _ in 0..w2 {
@@ -193,7 +199,7 @@ impl Factorize for Ecm {
         let mo = ModInt::new(n);
         let (mut c0, mut c1, mut cn) = (0, 0, 0);
         loop {
-            for _i in 1usize..=100000 {
+            for _i in 1usize..=4000 {
                 let s = self.rng.next_range(6..n - 5);
                 if let Some(d) = self.check_curve(mo, s) {
                     if d == 0 {
@@ -207,15 +213,27 @@ impl Factorize for Ecm {
                         return d;
                     }
                 }
-                if _i.is_multiple_of(100) {
+                if _i.is_multiple_of(500) {
                     eprintln!("[{_i}] ({c0}, {c1}, {cn})");
                 }
             }
             self.b1 *= 2;
             self.sieve = Sieve::new(self.b1 as _);
             self.b2 *= 2;
-            eprintln!("({c0}, {c1}, {cn}), extended to {}, {}", self.b1, self.b2);
+            eprintln!(
+                "({c0}, {c1}, {cn}), extended to {}, {}",
+                self.b1, self.b2
+            );
         }
+    }
+}
+
+impl Display for Ecm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ecm")
+            .field("b1", &self.b1)
+            .field("b2", &self.b2)
+            .finish_non_exhaustive()
     }
 }
 
