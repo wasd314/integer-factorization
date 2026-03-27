@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::{
-    modint::u128::{ModInt, gcd},
+    modint::dynamic::u128::{ModInt, gcd},
     utility::{Sfc64, Sieve, bisect_left},
     wrapper::Factorize,
 };

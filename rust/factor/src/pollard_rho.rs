@@ -1,5 +1,5 @@
 use crate::{
-    modint::u128::{ModInt, gcd},
+    modint::dynamic::u128::{ModInt, gcd},
     wrapper::Factorize,
 };
 
