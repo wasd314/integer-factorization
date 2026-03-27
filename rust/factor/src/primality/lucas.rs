@@ -1,4 +1,4 @@
-use crate::modint::u128::ModInt;
+use crate::dynamic_modint::u128::ModInt;
 
 /// Legendre symbol.
 ///

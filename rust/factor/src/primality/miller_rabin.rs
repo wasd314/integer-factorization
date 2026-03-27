@@ -1,4 +1,4 @@
-use crate::modint::u128::ModInt;
+use crate::dynamic_modint::u128::ModInt;
 
 /// Miller–Rabin primality test.
 pub fn is_sprp(n: u128, bases: &[u128]) -> bool {
