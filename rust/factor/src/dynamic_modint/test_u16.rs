@@ -1,8 +1,6 @@
 #![cfg(test)]
 //! Test implementation of Montgomery ModInt.
 
-use std::num::Wrapping;
-
 type U1 = u16;
 
 #[derive(Debug, Clone, Copy)]
@@ -30,26 +28,32 @@ fn multiply_high(x: U1, y: U1) -> U1 {
 }
 
 impl ModInt {
-    pub fn new(n: U1) -> Self {
-        assert_eq!(n >> (U1::BITS - 1), 0);
-        assert_eq!(n & 1, 1, "n = {n} should be odd");
+    pub const fn new(n: U1) -> Self {
+        assert!(n >> (U1::BITS - 1) == 0);
+        assert!((n & 1) == 1, "n should be odd");
 
         let n_ = {
             // n * n == 1 mod 2^2
-            let mut n_inv = Wrapping(n);
-            for _ in 0..U1::BITS.ilog2() - 1 {
-                n_inv *= Wrapping(2) - n_inv * Wrapping(n);
+            let mut n_inv = n;
+            // for _ in 0..U1::BITS.ilog2() - 1 {}
+            let mut i = U1::BITS.ilog2() - 1;
+            while i > 0 {
+                n_inv = n_inv.wrapping_mul(U1::wrapping_sub(2, n_inv.wrapping_mul(n)));
+                i -= 1;
             }
-            (-n_inv).0
+            n_inv.wrapping_neg()
         };
         let r1 = n.wrapping_neg() % n;
         let r2 = {
             let mut r2 = r1;
-            for _ in 0..U1::BITS {
+            // for _ in 0..U1::BITS {}
+            let mut i = U1::BITS;
+            while i > 0 {
                 r2 <<= 1;
                 if r2 >= n {
                     r2 -= n;
                 }
+                i -= 1
             }
             r2
         };
