@@ -1,5 +1,6 @@
 pub mod ecm;
 pub mod dynamic_modint;
+pub mod modint;
 pub mod pollard_rho;
 pub mod primality;
 pub mod utility;
