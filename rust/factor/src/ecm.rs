@@ -148,6 +148,9 @@ impl Ecm {
         if 1 < g && g < mo.n {
             return Some(g);
         }
+        if self.b1 == self.b2 {
+            return None;
+        }
 
         // Stage 2
         const D: usize = 210;
