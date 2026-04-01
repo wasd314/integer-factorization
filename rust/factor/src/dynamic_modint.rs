@@ -3,8 +3,6 @@ mod test_u16;
 macro_rules! impl_modint {
     // impl body
     (@ body: $u1:ty, $i1:ty) => {
-        use std::num::Wrapping;
-
         #[derive(Debug, Clone, Copy)]
         pub struct ModInt {
             /// N, modulus
@@ -30,26 +28,46 @@ macro_rules! impl_modint {
         }
 
         impl ModInt {
-            pub fn new(n: $u1) -> Self {
-                assert_eq!(n >> (<$u1>::BITS - 1), 0);
-                assert_eq!(n & 1, 1, "n = {n} should be odd");
+            pub const fn new(n: $u1) -> Self {
+                assert!(n >> (<$u1>::BITS - 1) == 0);
+                assert!(n & 1 == 1, "n should be odd");
 
                 let n_ = {
                     // n * n == 1 mod 2^2
-                    let mut n_inv = Wrapping(n);
-                    for _ in 0..<$u1>::BITS.ilog2() - 1 {
-                        n_inv *= Wrapping(2) - n_inv * Wrapping(n);
+                    // let mut n_inv = Wrapping(n);
+                    // for _ in 0..<$u1>::BITS.ilog2() - 1 {
+                    //     n_inv *= Wrapping(2) - n_inv * Wrapping(n);
+                    // }
+                    // (-n_inv).0
+                    let mut n_inv = n;
+                    let mut i = <$u1>::BITS.ilog2() - 1;
+                    while i > 0 {
+                        n_inv = n_inv.wrapping_mul((2 as $u1).wrapping_sub(n_inv.wrapping_mul(n)));
+                        i -= 1;
                     }
-                    (-n_inv).0
+                    // for _ in 0..<$u1>::BITS.ilog2() - 1 {
+                    //     n_inv *= Wrapping(2) - n_inv * Wrapping(n);
+                    //     n_inv = n_inv.wrapping_mul((2 as U1).wrapping_sub(n_inv.wrapping_mul(n)));
+                    // }
+                    // (-n_inv).0
+                    n_inv.wrapping_neg()
                 };
                 let r1 = n.wrapping_neg() % n;
                 let r2 = {
                     let mut r2 = r1;
-                    for _ in 0..<$u1>::BITS {
+                    // for _ in 0..<$u1>::BITS {
+                    //     r2 <<= 1;
+                    //     if r2 >= n {
+                    //         r2 -= n;
+                    //     }
+                    // }
+                    let mut i = <$u1>::BITS;
+                    while i > 0 {
                         r2 <<= 1;
                         if r2 >= n {
                             r2 -= n;
                         }
+                        i -= 1;
                     }
                     r2
                 };
