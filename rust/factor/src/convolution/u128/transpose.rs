@@ -1,5 +1,6 @@
 use crate::convolution::u128 as primal;
 use crate::modint::u128::StaticModInt;
+use crate::primality::is_prime_const;
 
 /// NTT 順変換の転置．
 ///
@@ -100,6 +101,14 @@ pub fn middle_product_arbitrary<const M: u128>(
     a: &[StaticModInt<M>],
     c: &[StaticModInt<M>],
 ) -> Vec<StaticModInt<M>> {
+    if is_prime_const(M) {
+        let lc = c.len();
+        let n = lc.next_power_of_two() as u128;
+        if (M - 1) & (n - 1) == 0 {
+            return middle_product_proth(a, c);
+        }
+    }
+
     const M1: u128 = 7 << 120 | 1;
     const M2: u128 = 51 << 119 | 1;
     const M3: u128 = 71 << 119 | 1;
