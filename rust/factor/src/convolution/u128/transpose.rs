@@ -282,6 +282,18 @@ mod tests {
             assert_eq!(b1, b2);
         }
         for _ in 0..100 {
+            type Mint = StaticModInt<65537>;
+            let la = rng.next_range(1..10) as usize;
+            let mut a: Vec<Mint> = gen_vector(&mut rng, la);
+            let lc = la + rng.next_range(0..10) as usize;
+            let c: Vec<Mint> = gen_vector(&mut rng, lc);
+
+            let b1 = middle_product_arbitrary(&a, &c);
+            a.reverse();
+            let b2 = primal::convolution_arbitrary(&a, &c)[la - 1..lc].to_owned();
+            assert_eq!(b1, b2);
+        }
+        for _ in 0..100 {
             type Mint = StaticModInt<{ 1 << 126 | 1 }>;
             let la = rng.next_range(1..10) as usize;
             let mut a: Vec<Mint> = gen_vector(&mut rng, la);
