@@ -1,6 +1,80 @@
-use crate::modint::u128::{Modulus, StaticModInt};
+use crate::{
+    modint::u128::StaticModInt,
+    primality::{is_prime, is_prime_const},
+};
 
 pub mod transpose;
+
+/// v_2 (M - 1) =: h として，mod M の位数 2^h の正整数
+pub const fn power_2_generator<const M: u128>() -> StaticModInt<M> {
+    let mut g = StaticModInt::<M>::one();
+    let h = (M - 1).trailing_zeros();
+    let e = 1 << (h - 1);
+    loop {
+        g = g.add(StaticModInt::one());
+        if g.pow_const(e).val_const() == M - 1 {
+            return g;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ButterflyCache<T> {
+    pub fore: [T; u128::BITS as _],
+    pub back: [T; u128::BITS as _],
+}
+
+impl<const M: u128> ButterflyCache<StaticModInt<M>> {
+    pub const fn new() -> Self {
+        // [i]: ord = 2^i
+        let mut roots = [StaticModInt::raw(0); u128::BITS as _];
+        let mut inv_roots = [StaticModInt::raw(0); u128::BITS as _];
+        let g = power_2_generator::<M>();
+        let h = (M - 1).trailing_zeros() as usize;
+        roots[h] = g;
+        if let Ok(ig) = g.inv_const() {
+            inv_roots[h] = ig;
+        }
+
+        // for i in (0..h).rev()
+        let mut i = h;
+        while i > 0 {
+            i -= 1;
+            roots[i] = roots[i + 1].mul_const(roots[i + 1]);
+            inv_roots[i] = inv_roots[i + 1].mul_const(inv_roots[i + 1]);
+        }
+
+        // [i]: 1^{ 1/2 + 3/2^{i+2} } = -1 * 1^{ 3/2^{i+2} }
+        let mut fore = [StaticModInt::raw(0); u128::BITS as _];
+        let mut back = [StaticModInt::raw(0); u128::BITS as _];
+        // for i in (0..h-1).rev()
+        let mut i = h - 1;
+        while i > 0 {
+            i -= 1;
+            fore[i] = roots[i + 1].mul_const(roots[i + 2]).neg();
+            back[i] = inv_roots[i + 1].mul_const(inv_roots[i + 2]).neg();
+        }
+
+        Self { fore, back }
+    }
+}
+impl<const M: u128> Default for ButterflyCache<StaticModInt<M>> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub trait HaveCache: Sized {
+    const CACHE: Option<ButterflyCache<Self>>;
+}
+
+impl<const M: u128> HaveCache for StaticModInt<M> {
+    const CACHE: Option<ButterflyCache<Self>> = if is_prime_const(M) {
+        Some(ButterflyCache::new())
+    } else {
+        None
+    };
+}
 
 /// NTT 順変換．
 ///
@@ -11,7 +85,7 @@ pub fn butterfly<const M: u128>(a: &mut [StaticModInt<M>]) {
         return;
     }
     let h = n.ilog2();
-    let fore = StaticModInt::<M>::CACHE.fore;
+    let fore = StaticModInt::<M>::CACHE.expect("M should be prime").fore;
     for ph in 0..h {
         let w = 1 << ph;
         let p = 1 << (h - ph - 1);
@@ -38,7 +112,7 @@ pub fn butterfly_inv<const M: u128>(a: &mut [StaticModInt<M>], divide_n: bool) {
         return;
     }
     let h = n.ilog2();
-    let back = StaticModInt::<M>::CACHE.back;
+    let back = StaticModInt::<M>::CACHE.expect("M should be prime").back;
     for ph in (0..h).rev() {
         let w = 1 << ph;
         let p = 1 << (h - ph - 1);
@@ -191,7 +265,7 @@ pub fn convolution_arbitrary<const M: u128>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{modint::u128::power_2_generator, utility::Sfc64};
+    use crate::{modint::u128::Modulus, utility::Sfc64};
 
     use super::*;
 
@@ -282,5 +356,33 @@ mod tests {
             let b: Vec<Mint> = gen_vector(&mut rng, n2);
             assert_eq!(convolution_arbitrary(&a, &b), convolution_naive(&a, &b));
         }
+    }
+
+    #[test]
+    fn test_power_2_generator() {
+        assert_eq!(power_2_generator::<3>().val(), 2);
+        assert_eq!(power_2_generator::<5>().val(), 2);
+        assert_eq!(power_2_generator::<7>().val(), 6);
+        assert_eq!(power_2_generator::<11>().val(), 10);
+        assert_eq!(power_2_generator::<13>().val(), 5);
+        assert_eq!(power_2_generator::<17>().val(), 3);
+        assert_eq!(power_2_generator::<19>().val(), 18);
+        assert_eq!(power_2_generator::<23>().val(), 22);
+        assert_eq!(power_2_generator::<29>().val(), 12);
+        assert_eq!(power_2_generator::<31>().val(), 30);
+        assert_eq!(power_2_generator::<37>().val(), 6);
+        assert_eq!(power_2_generator::<41>().val(), 3);
+        assert_eq!(power_2_generator::<43>().val(), 42);
+        assert_eq!(power_2_generator::<47>().val(), 46);
+        assert_eq!(power_2_generator::<53>().val(), 23);
+        assert_eq!(power_2_generator::<59>().val(), 58);
+        assert_eq!(power_2_generator::<61>().val(), 11);
+        assert_eq!(power_2_generator::<67>().val(), 66);
+        assert_eq!(power_2_generator::<71>().val(), 70);
+        assert_eq!(power_2_generator::<73>().val(), 10);
+        assert_eq!(power_2_generator::<79>().val(), 78);
+        assert_eq!(power_2_generator::<83>().val(), 82);
+        assert_eq!(power_2_generator::<89>().val(), 12);
+        assert_eq!(power_2_generator::<97>().val(), 19);
     }
 }

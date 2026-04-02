@@ -244,75 +244,13 @@ impl DynamicModInt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub struct StaticModInt<const M: U1>(U1);
 
-/// v_2 (M - 1) =: h として，mod M の位数 2^h の正整数
-pub const fn power_2_generator<const M: U1>() -> StaticModInt<M> {
-    let mut g = StaticModInt::<M>::one();
-    let h = (M - 1).trailing_zeros();
-    let e = 1 << (h - 1);
-    let neg1 = StaticModInt::<M>::one().neg().0;
-    loop {
-        g = g.add(StaticModInt::one());
-        if g.pow_const(e).0 == neg1 {
-            return g;
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ButterflyCache<T> {
-    pub fore: [T; U1::BITS as _],
-    pub back: [T; U1::BITS as _],
-}
-
-impl<const M: U1> ButterflyCache<StaticModInt<M>> {
-    pub const fn new() -> Self {
-        // [i]: ord = 2^i
-        let mut roots = [StaticModInt(0); U1::BITS as _];
-        let mut inv_roots = [StaticModInt(0); U1::BITS as _];
-        let g = power_2_generator::<M>();
-        let h = (M - 1).trailing_zeros() as usize;
-        roots[h] = g;
-        if let Ok(ig) = g.inv_const() {
-            inv_roots[h] = ig;
-        }
-
-        // for i in (0..h).rev()
-        let mut i = h;
-        while i > 0 {
-            i -= 1;
-            roots[i] = roots[i + 1].mul_const(roots[i + 1]);
-            inv_roots[i] = inv_roots[i + 1].mul_const(inv_roots[i + 1]);
-        }
-
-        // [i]: 1^{ 1/2 + 3/2^{i+2} } = -1 * 1^{ 3/2^{i+2} }
-        let mut fore = [StaticModInt(0); U1::BITS as _];
-        let mut back = [StaticModInt(0); U1::BITS as _];
-        // for i in (0..h-1).rev()
-        let mut i = h - 1;
-        while i > 0 {
-            i -= 1;
-            fore[i] = roots[i + 1].mul_const(roots[i + 2]).neg();
-            back[i] = inv_roots[i + 1].mul_const(inv_roots[i + 2]).neg();
-        }
-
-        Self { fore, back }
-    }
-}
-impl<const M: U1> Default for ButterflyCache<StaticModInt<M>> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 pub trait Modulus: Sized {
     const MOD: U1;
-    const CACHE: ButterflyCache<Self>;
     const MON: DynamicModInt;
 }
 
 impl<const M: U1> Modulus for StaticModInt<M> {
     const MOD: U1 = M;
-    const CACHE: ButterflyCache<Self> = ButterflyCache::new();
     const MON: DynamicModInt = DynamicModInt::new(M);
 }
 
@@ -568,33 +506,5 @@ mod tests {
             }
             a += 1;
         }
-    }
-
-    #[test]
-    fn test_power_2_generator() {
-        assert_eq!(power_2_generator::<3>().val(), 2);
-        assert_eq!(power_2_generator::<5>().val(), 2);
-        assert_eq!(power_2_generator::<7>().val(), 6);
-        assert_eq!(power_2_generator::<11>().val(), 10);
-        assert_eq!(power_2_generator::<13>().val(), 5);
-        assert_eq!(power_2_generator::<17>().val(), 3);
-        assert_eq!(power_2_generator::<19>().val(), 18);
-        assert_eq!(power_2_generator::<23>().val(), 22);
-        assert_eq!(power_2_generator::<29>().val(), 12);
-        assert_eq!(power_2_generator::<31>().val(), 30);
-        assert_eq!(power_2_generator::<37>().val(), 6);
-        assert_eq!(power_2_generator::<41>().val(), 3);
-        assert_eq!(power_2_generator::<43>().val(), 42);
-        assert_eq!(power_2_generator::<47>().val(), 46);
-        assert_eq!(power_2_generator::<53>().val(), 23);
-        assert_eq!(power_2_generator::<59>().val(), 58);
-        assert_eq!(power_2_generator::<61>().val(), 11);
-        assert_eq!(power_2_generator::<67>().val(), 66);
-        assert_eq!(power_2_generator::<71>().val(), 70);
-        assert_eq!(power_2_generator::<73>().val(), 10);
-        assert_eq!(power_2_generator::<79>().val(), 78);
-        assert_eq!(power_2_generator::<83>().val(), 82);
-        assert_eq!(power_2_generator::<89>().val(), 12);
-        assert_eq!(power_2_generator::<97>().val(), 19);
     }
 }
