@@ -1,5 +1,7 @@
 use crate::modint::u128::{Modulus, StaticModInt};
 
+pub mod transpose;
+
 /// NTT 順変換．
 ///
 /// 入力が natural order のとき，出力は bit-reversal order．
@@ -75,8 +77,8 @@ pub fn convolution_proth<const M: u128>(
     let lc = la + lb - 1;
     let n = lc.next_power_of_two();
     assert!(
-        M & (n as u128 - 1) == 1,
-        "length {lc} is too long for NTT mod {M} ({M:x})"
+        (M - 1) & (n as u128 - 1) == 0,
+        "length {lc} is too long for NTT mod {M} (0x{M:x})"
     );
 
     let (mut a, mut b) = (a.to_owned(), b.to_owned());
@@ -131,6 +133,7 @@ pub fn convolution_raw<const M: u128>(a: &[u128], b: &[u128]) -> Vec<u128> {
         .collect::<Vec<_>>()
 }
 
+/// 任意 mod 畳み込み．
 pub fn convolution_arbitrary<const M: u128>(
     a: &[StaticModInt<M>],
     b: &[StaticModInt<M>],
