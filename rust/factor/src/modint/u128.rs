@@ -284,6 +284,7 @@ impl<const M: U1> ButterflyCache<StaticModInt<M>> {
             inv_roots[i] = inv_roots[i + 1].mul_const(inv_roots[i + 1]);
         }
 
+        // [i]: 1^{ 1/2 + 3/2^{i+2} } = -1 * 1^{ 3/2^{i+2} }
         let mut fore = [StaticModInt(0); U1::BITS as _];
         let mut back = [StaticModInt(0); U1::BITS as _];
         // for i in (0..h-1).rev()
