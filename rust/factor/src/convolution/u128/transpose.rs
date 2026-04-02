@@ -273,7 +273,7 @@ mod tests {
             assert_eq!(b1, b2);
         }
         for _ in 0..100 {
-            type Mint = StaticModInt<{ (1 << 127) - 1 }>;
+            type Mint = StaticModInt<{ 1 << 126 | 1 }>;
             let la = rng.next_range(1..10) as usize;
             let mut a: Vec<Mint> = gen_vector(&mut rng, la);
             let lc = la + rng.next_range(0..10) as usize;

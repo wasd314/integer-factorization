@@ -267,7 +267,7 @@ mod tests {
             assert_eq!(convolution_arbitrary(&a, &b), convolution_naive(&a, &b));
         }
         for _ in 0..100 {
-            type Mint = StaticModInt<{ (1 << 127) - 1 }>;
+            type Mint = StaticModInt<{ 1 << 126 | 1 }>;
             let n1 = rng.next_range(0..100) as usize;
             let a: Vec<Mint> = gen_vector(&mut rng, n1);
             let n2 = rng.next_range(0..100) as usize;
