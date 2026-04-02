@@ -74,7 +74,10 @@ pub fn convolution_proth<const M: u128>(
     let (la, lb) = (a.len(), b.len());
     let lc = la + lb - 1;
     let n = lc.next_power_of_two();
-    assert!(M & (n as u128 - 1) == 1, "length {lc} is too long for NTT mod {M}");
+    assert!(
+        M & (n as u128 - 1) == 1,
+        "length {lc} is too long for NTT mod {M} ({M:x})"
+    );
 
     let (mut a, mut b) = (a.to_owned(), b.to_owned());
     a.resize(n, StaticModInt::raw(0));
@@ -107,11 +110,87 @@ pub fn convolution_naive<const M: u128>(
     c
 }
 
+/// convolution_proth の入出力から StaticModInt を剥がしたもの
+pub fn convolution_raw<const M: u128>(a: &[u128], b: &[u128]) -> Vec<u128> {
+    if a.is_empty() || b.is_empty() {
+        return vec![];
+    }
+    let a = a
+        .iter()
+        .copied()
+        .map(StaticModInt::<M>::new)
+        .collect::<Vec<_>>();
+    let b = b
+        .iter()
+        .copied()
+        .map(StaticModInt::<M>::new)
+        .collect::<Vec<_>>();
+    convolution_proth(&a, &b)
+        .into_iter()
+        .map(|e| e.val())
+        .collect::<Vec<_>>()
+}
+
+pub fn convolution_arbitrary<const M: u128>(
+    a: &[StaticModInt<M>],
+    b: &[StaticModInt<M>],
+) -> Vec<StaticModInt<M>> {
+    if a.is_empty() || b.is_empty() {
+        return vec![];
+    }
+    const M1: u128 = 7 << 120 | 1;
+    const M2: u128 = 51 << 119 | 1;
+    const M3: u128 = 71 << 119 | 1;
+    type Mint2 = StaticModInt<M2>;
+    type Mint3 = StaticModInt<M3>;
+
+    const M1_INV_M2: Mint2 = match Mint2::new_const(M1).inv_const() {
+        Ok(e) => e,
+        Err(_) => panic!(),
+    };
+    const M1M2_INV_M3: Mint3 = match Mint3::new_const(M1)
+        .mul_const(Mint3::new_const(M2))
+        .inv_const()
+    {
+        Ok(e) => e,
+        Err(_) => panic!(),
+    };
+
+    let a = a.iter().map(|e| e.val()).collect::<Vec<_>>();
+    let b = b.iter().map(|e| e.val()).collect::<Vec<_>>();
+    let c1 = convolution_raw::<M1>(&a, &b);
+    let c2 = convolution_raw::<M2>(&a, &b);
+    let c3 = convolution_raw::<M3>(&a, &b);
+
+    c1.into_iter()
+        .zip(c2)
+        .zip(c3)
+        .map(|((c1, c2), c3)| {
+            let x1 = c1;
+            let x2 = ((Mint2::new(c2) - Mint2::new(x1)) * M1_INV_M2).val();
+            let x3 = ((Mint3::new(c3) - Mint3::new(x1) - Mint3::new(x2) * Mint3::new(M1))
+                * M1M2_INV_M3)
+                .val();
+            StaticModInt::new(x1)
+                + StaticModInt::new(M1) * StaticModInt::new(x2)
+                + StaticModInt::new(M1) * StaticModInt::new(M2) * StaticModInt::new(x3)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utility::Sfc64;
 
     use super::*;
+
+    fn gen_vector<const M: u128>(rng: &mut Sfc64, n: usize) -> Vec<StaticModInt<M>> {
+        let mut a = vec![StaticModInt::new(0); n];
+        for ai in a.iter_mut() {
+            *ai = StaticModInt::new(rng.next_range(0..M));
+        }
+        a
+    }
 
     #[test]
     fn test_butterfly_id() {
@@ -119,10 +198,7 @@ mod tests {
         let mut rng = Sfc64::new(0);
         for h in 0..6 {
             for _ in 0..100 {
-                let mut a = vec![Mint::new(0); 1 << h];
-                for ai in a.iter_mut() {
-                    *ai = Mint::new(rng.next_range(0..Mint::MOD));
-                }
+                let a: Vec<Mint> = gen_vector(&mut rng, 1 << h);
 
                 let mut a_ = a.clone();
                 butterfly(&mut a_);
@@ -142,15 +218,32 @@ mod tests {
         type Mint = StaticModInt<65537>;
         let mut rng = Sfc64::new(0);
         for _ in 0..100 {
-            let mut a = vec![Mint::new(0); rng.next_range(0..100) as _];
-            for e in a.iter_mut() {
-                *e = Mint::new(rng.next_range(0..Mint::MOD));
-            }
-            let mut b = vec![Mint::new(0); rng.next_range(0..100) as _];
-            for e in b.iter_mut() {
-                *e = Mint::new(rng.next_range(0..Mint::MOD));
-            }
+            let n1 = rng.next_range(0..100) as usize;
+            let a: Vec<Mint> = gen_vector(&mut rng, n1);
+            let n2 = rng.next_range(0..100) as usize;
+            let b: Vec<Mint> = gen_vector(&mut rng, n2);
             assert_eq!(convolution_proth(&a, &b), convolution_naive(&a, &b));
+        }
+    }
+
+    #[test]
+    fn test_convolution_arbitrary() {
+        let mut rng = Sfc64::new(0);
+        for _ in 0..100 {
+            type Mint = StaticModInt<65537>;
+            let n1 = rng.next_range(0..100) as usize;
+            let a: Vec<Mint> = gen_vector(&mut rng, n1);
+            let n2 = rng.next_range(0..100) as usize;
+            let b: Vec<Mint> = gen_vector(&mut rng, n2);
+            assert_eq!(convolution_arbitrary(&a, &b), convolution_naive(&a, &b));
+        }
+        for _ in 0..100 {
+            type Mint = StaticModInt<{ (1 << 127) - 1 }>;
+            let n1 = rng.next_range(0..100) as usize;
+            let a: Vec<Mint> = gen_vector(&mut rng, n1);
+            let n2 = rng.next_range(0..100) as usize;
+            let b: Vec<Mint> = gen_vector(&mut rng, n2);
+            assert_eq!(convolution_arbitrary(&a, &b), convolution_naive(&a, &b));
         }
     }
 }
