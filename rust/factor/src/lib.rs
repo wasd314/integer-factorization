@@ -1,4 +1,5 @@
 pub mod ecm;
+pub mod convolution;
 pub mod dynamic_modint;
 pub mod modint;
 pub mod pollard_rho;
