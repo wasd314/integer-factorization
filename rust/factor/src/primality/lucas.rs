@@ -1,9 +1,9 @@
-use crate::dynamic_modint::u128::ModInt;
+use crate::modint::u128::DynamicModInt as Mint;
 
 /// Legendre symbol.
 ///
 /// assume p = mp.n: odd prime.
-pub fn legendre(a: u128, mp: &ModInt) -> i8 {
+pub fn legendre(a: u128, mp: &Mint) -> i8 {
     let a = mp.mod_n(a);
     if a == 0 {
         return 0;
@@ -40,7 +40,7 @@ pub fn jacobi(a: i128, mut n: u128) -> i8 {
 /// Lucas sequence (U(P, Q), V(P, Q)) の n 項目．
 ///
 /// Montgomery form で返す．
-pub fn calc_lucas(p: u128, q: u128, n: u128, mo: &ModInt) -> (u128, u128) {
+pub fn calc_lucas(p: u128, q: u128, n: u128, mo: &Mint) -> (u128, u128) {
     let (rp, rq) = (mo.mr(p), mo.mr(q));
     let rd = mo.sub(mo.mul(rp, rp), mo.mul(rq, mo.mr(4)));
     let (mut ru0, mut ru1) = (mo.mr(0), mo.r1);
@@ -77,7 +77,7 @@ pub fn calc_lucas(p: u128, q: u128, n: u128, mo: &ModInt) -> (u128, u128) {
 /// Lucas sequence (U(P, Q), V(P, Q)) の n 項目．
 ///
 /// Montgomery form で返す．
-pub fn calc_lucas_with_matrix(p: u128, q: u128, mut n: u128, mo: &ModInt) -> (u128, u128) {
+pub fn calc_lucas_with_matrix(p: u128, q: u128, mut n: u128, mo: &Mint) -> (u128, u128) {
     let (rp, rq) = (mo.mr(p), mo.mr(q));
 
     let mat_mul = |a: [[u128; 2]; 2], b: [[u128; 2]; 2]| {
@@ -127,7 +127,7 @@ pub fn is_lucas_sprp(n: u128) -> bool {
     let Some(det) = det else { return false };
     let (p, q) = (1, (1 - det) / 4);
     let q = q.rem_euclid(n as _) as _;
-    let mo = ModInt::new(n);
+    let mo = Mint::new(n);
 
     // n - (D/n) = n + 1
     let e = (n + 1).trailing_zeros();
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn test_legendre() {
         for n in (3..60).filter(|n| is_prime(*n)) {
-            let mp = ModInt::new(n);
+            let mp = Mint::new(n);
             for a in 0..100 {
                 assert_eq!(legendre(a, &mp), jacobi(a as _, n), "check ({a}/{n})");
             }
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn lucas_sequence() {
         let nn = (1 << 61) - 1;
-        let mo = ModInt::new(nn);
+        let mo = Mint::new(nn);
         println!("{mo:?}");
         let p = 1;
         for qi in -10..10 {

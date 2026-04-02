@@ -1,5 +1,5 @@
 use crate::{
-    dynamic_modint::u128::{ModInt, gcd},
+    modint::u128::{DynamicModInt as Mint, gcd},
     wrapper::Factorize,
 };
 
@@ -30,7 +30,7 @@ impl<T> PollardRho<T> {
 impl Factorize for PollardRho<Floyd> {
     fn find_factor(&mut self, n: u128) -> u128 {
         // n: odd composite
-        let mo = ModInt::new(n);
+        let mo = Mint::new(n);
         let mut rc = 0;
         loop {
             rc += 1;
@@ -85,7 +85,7 @@ impl Factorize for PollardRho<Floyd> {
 impl Factorize for PollardRho<Brent> {
     fn find_factor(&mut self, n: u128) -> u128 {
         // n: odd composite
-        let mo = ModInt::new(n);
+        let mo = Mint::new(n);
         let mut rc = 0;
         loop {
             rc += 1;

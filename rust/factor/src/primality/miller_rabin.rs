@@ -1,11 +1,11 @@
-use crate::dynamic_modint::u128::ModInt;
+use crate::modint::u128::DynamicModInt as Mint;
 
 /// Miller–Rabin primality test.
 pub fn is_sprp(n: u128, bases: &[u128]) -> bool {
     if n.is_multiple_of(2) || n == 1 {
         return false;
     }
-    let mont = ModInt::new(n);
+    let mont = Mint::new(n);
     let one = mont.r1;
     let neg_one = mont.neg(one);
     let e = (n - 1).trailing_zeros();

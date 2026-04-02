@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::{
-    dynamic_modint::u128::{ModInt, gcd},
+    modint::u128::{DynamicModInt as Mint, gcd},
     utility::{Sfc64, Sieve, bisect_left},
     wrapper::Factorize,
 };
@@ -13,7 +13,7 @@ use crate::{
 pub struct Curve {
     /// (A + 2)/4, in Montgomery form
     a24: u128,
-    mo: ModInt,
+    mo: Mint,
 }
 
 type Point = (u128, u128);
@@ -30,13 +30,13 @@ impl Curve {
     }
 
     /// a24 = (A + 2)/4 in Montgomery form なる curve.
-    pub fn new(a24: u128, mo: ModInt) -> Self {
+    pub fn new(a24: u128, mo: Mint) -> Self {
         Self { a24, mo }
     }
     /// Suyama's parametrization.
     ///
     /// Ok((curve, initial P)) または Err(divisor) を返す．
-    pub fn init_suyama(s: u128, mo: ModInt) -> Result<(Self, Point), u128> {
+    pub fn init_suyama(s: u128, mo: Mint) -> Result<(Self, Point), u128> {
         let rs = mo.mr(s);
         let u = mo.sub(mo.mul(rs, rs), mo.mr(5));
         let v = mo.mul(rs, mo.mr(4));
@@ -131,7 +131,7 @@ impl Ecm {
             sieve: Sieve::new(b1 as _),
         }
     }
-    pub fn check_curve(&mut self, mo: ModInt, s: u128) -> Option<u128> {
+    pub fn check_curve(&mut self, mo: Mint, s: u128) -> Option<u128> {
         let (c, mut point) = match Curve::init_suyama(s, mo) {
             Ok(t) => t,
             Err(d) => return Some(d),
@@ -199,7 +199,7 @@ impl Ecm {
 
 impl Factorize for Ecm {
     fn find_factor(&mut self, n: u128) -> u128 {
-        let mo = ModInt::new(n);
+        let mo = Mint::new(n);
         let (mut c0, mut c1, mut cn) = (0, 0, 0);
         loop {
             for _i in 1usize..=4000 {
@@ -247,7 +247,7 @@ mod tests {
     fn test_scale() {
         let n = (1 << 61) - 1;
         // let n = 10007;
-        let mo = ModInt::new(n);
+        let mo = Mint::new(n);
         let mut rng = Sfc64::new(n as _);
         let d = 100;
         let same = |p: (u128, u128), q: (u128, u128)| mo.mul(p.0, q.1) == mo.mul(p.1, q.0);
