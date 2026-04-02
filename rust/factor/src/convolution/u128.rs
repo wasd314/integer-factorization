@@ -141,6 +141,14 @@ pub fn convolution_arbitrary<const M: u128>(
     if a.is_empty() || b.is_empty() {
         return vec![];
     }
+    if is_prime(M) {
+        let (la, lb) = (a.len(), b.len());
+        let lc = la + lb - 1;
+        let n = lc.next_power_of_two() as u128;
+        if (M - 1) & (n - 1) == 0 {
+            return convolution_proth(a, b);
+        }
+    }
     const M1: u128 = 7 << 120 | 1;
     const M2: u128 = 51 << 119 | 1;
     const M3: u128 = 71 << 119 | 1;

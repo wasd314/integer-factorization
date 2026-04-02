@@ -28,6 +28,39 @@ pub fn is_sprp(n: u128, bases: &[u128]) -> bool {
     true
 }
 
+/// Miller–Rabin primality test.
+pub const fn is_sprp_const(n: u128, bases: &[u128]) -> bool {
+    if n.is_multiple_of(2) || n == 1 {
+        return false;
+    }
+    let mont = Mint::new(n);
+    let one = mont.r1;
+    let neg_one = mont.neg(one);
+    let e = (n - 1).trailing_zeros();
+    let o = n >> e;
+    let mut ib = bases.len();
+    while ib > 0 {
+        ib -= 1;
+        let b = bases[ib];
+        let mut rx = mont.pow_const(mont.mr_const(b), o);
+        if rx == one || rx == neg_one {
+            continue;
+        }
+        let mut ie = e;
+        while ie > 0 {
+            ie -= 1;
+            rx = mont.mul_const(rx, rx);
+            if rx == neg_one {
+                break;
+            }
+        }
+        if rx != neg_one {
+            return false;
+        }
+    }
+    true
+}
+
 /// Primality test based on Miller–Rabin primality test.
 pub fn is_prime(n: u128) -> bool {
     if n <= 2 {
@@ -55,6 +88,41 @@ pub fn is_prime(n: u128) -> bool {
     } else {
         // first 20 primes (not verified)
         is_sprp(
+            n,
+            &[
+                2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+            ],
+        )
+    }
+}
+
+/// Primality test based on Miller–Rabin primality test.
+pub const fn is_prime_const(n: u128) -> bool {
+    if n <= 2 {
+        return n == 2;
+    }
+    if n.is_multiple_of(2) {
+        return false;
+    }
+    if n < 2047 {
+        is_sprp_const(n, &[2])
+    } else if n < 9080191 {
+        is_sprp_const(n, &[31, 73])
+    } else if n < 4759123141 {
+        is_sprp_const(n, &[2, 7, 61])
+    } else if n < 1122004669633 {
+        is_sprp_const(n, &[2, 13, 23, 1662803])
+    } else if n < 3770579582154547 {
+        is_sprp_const(n, &[2, 880937, 2570940, 610386380, 4130785767])
+    } else if n < 18446744073709551616 {
+        is_sprp_const(n, &[2, 325, 9375, 28178, 450775, 9780504, 1795265022])
+    } else if n < 318665857834031151167461 {
+        is_sprp_const(n, &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37])
+    } else if n < 3317044064679887385961981 {
+        is_sprp_const(n, &[2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41])
+    } else {
+        // first 20 primes (not verified)
+        is_sprp_const(
             n,
             &[
                 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,

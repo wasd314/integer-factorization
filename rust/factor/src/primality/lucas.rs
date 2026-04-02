@@ -17,7 +17,7 @@ pub fn legendre(a: u128, mp: &Mint) -> i8 {
 /// Jacobi symbol.
 ///
 /// assume p = mp.n: odd.
-pub fn jacobi(a: i128, mut n: u128) -> i8 {
+pub const fn jacobi(a: i128, mut n: u128) -> i8 {
     assert!(!n.is_multiple_of(2));
     let mut a = a.rem_euclid(n as _) as u128;
     let mut ans = 1;
@@ -68,6 +68,52 @@ pub fn calc_lucas(p: u128, q: u128, n: u128, mo: &Mint) -> (u128, u128) {
                 half(mo.add(mo.mul(rv0, rv1), mul3(rd, ru0, ru1))),
             );
             rqs2 = half(mo.mul(rqs2, rqs2));
+            (ru0, ru1, rv0, rv1) = (ru2, ru3, rv2, rv3);
+        }
+    }
+    (ru0, rv0)
+}
+
+/// Lucas sequence (U(P, Q), V(P, Q)) の n 項目．
+///
+/// Montgomery form で返す．
+pub const fn calc_lucas_const(p: u128, q: u128, n: u128, mo: &Mint) -> (u128, u128) {
+    let (rp, rq) = (mo.mr_const(p), mo.mr_const(q));
+    let rd = mo.sub(mo.mul_const(rp, rp), mo.mul_const(rq, mo.mr_const(4)));
+    let (mut ru0, mut ru1) = (mo.mr_const(0), mo.r1);
+    let (mut rv0, mut rv1) = (mo.mr_const(2), rp);
+    // 2 Q^n, initially 2
+    let mut rqs2 = mo.add(mo.r1, mo.r1);
+
+    const fn half(mo: &Mint, x: u128) -> u128 {
+        if x & 1 == 0 { x >> 1 } else { (x + mo.n) >> 1 }
+    }
+    const fn mul3(mo: &Mint, rx: u128, ry: u128, rz: u128) -> u128 {
+        mo.mul_const(mo.mul_const(rx, ry), rz)
+    }
+    let mut i = u128::BITS - n.leading_zeros();
+    while i > 0 {
+        i -= 1;
+        if n >> i & 1 == 1 {
+            // (n, n+1, 2 Q^n) => (2n+1, 2n+2, 2 Q^{2n+1})
+            let (ru3, rv3) = (
+                mo.sub(mo.mul_const(ru1, ru1), mul3(mo, rq, ru0, ru0)),
+                half(mo, mo.add(mo.mul_const(rv0, rv1), mul3(mo, rd, ru0, ru1))),
+            );
+            let (ru4, rv4) = (
+                mo.mul_const(ru1, rv1),
+                mo.sub(mo.mul_const(rv1, rv1), mo.mul_const(rqs2, rq)),
+            );
+            rqs2 = half(mo, mul3(mo, rqs2, rqs2, rq));
+            (ru0, ru1, rv0, rv1) = (ru3, ru4, rv3, rv4);
+        } else {
+            // (n, n+1, 2 Q^n) => (2n, 2n+1, 2 Q^{2n})
+            let (ru2, rv2) = (mo.mul_const(ru0, rv0), mo.sub(mo.mul_const(rv0, rv0), rqs2));
+            let (ru3, rv3) = (
+                mo.sub(mo.mul_const(ru1, ru1), mul3(mo, rq, ru0, ru0)),
+                half(mo, mo.add(mo.mul_const(rv0, rv1), mul3(mo, rd, ru0, ru1))),
+            );
+            rqs2 = half(mo, mo.mul_const(rqs2, rqs2));
             (ru0, ru1, rv0, rv1) = (ru2, ru3, rv2, rv3);
         }
     }
@@ -141,6 +187,54 @@ pub fn is_lucas_sprp(n: u128) -> bool {
     for _ in 1..e {
         (ru, rv) = (mo.mul(ru, rv), mo.sub(mo.mul(rv, rv), mo.add(rq, rq)));
         rq = mo.mul(rq, rq);
+        if rv == 0 {
+            return true;
+        }
+    }
+    false
+}
+
+/// Strong Lucas primality test with parameters (P, Q) defined by Selfridge's Method A.
+pub const fn is_lucas_sprp_const(n: u128) -> bool {
+    if n.is_multiple_of(2) || n == 1 {
+        return false;
+    }
+    let det = {
+        let mut d = 5;
+        loop {
+            match jacobi(d, n) {
+                -1 => break Some(d),
+                0 if n > d.unsigned_abs() => break None,
+                _ => {}
+            }
+            if d == -15 && n.isqrt().pow(2) == n {
+                break None;
+            }
+            d = if d > 0 { -2 } else { 2 } - d;
+        }
+    };
+    let Some(det) = det else { return false };
+    let (p, q) = (1, (1 - det) / 4);
+    let q = q.rem_euclid(n as _) as _;
+    let mo = Mint::new(n);
+
+    // n - (D/n) = n + 1
+    let e = (n + 1).trailing_zeros();
+    let o = (n + 1) >> e;
+    let (mut ru, mut rv) = calc_lucas_const(p, q, o, &mo);
+    let rq0 = mo.mr_const(q);
+    let mut rq = mo.pow_const(rq0, o);
+    if ru == 0 || rv == 0 {
+        return true;
+    }
+    let mut i = e;
+    while i > 1 {
+        i -= 1;
+        (ru, rv) = (
+            mo.mul_const(ru, rv),
+            mo.sub(mo.mul_const(rv, rv), mo.add(rq, rq)),
+        );
+        rq = mo.mul_const(rq, rq);
         if rv == 0 {
             return true;
         }
