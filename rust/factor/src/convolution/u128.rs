@@ -180,7 +180,7 @@ pub fn convolution_arbitrary<const M: u128>(
 
 #[cfg(test)]
 mod tests {
-    use crate::utility::Sfc64;
+    use crate::{modint::u128::power_2_generator, utility::Sfc64};
 
     use super::*;
 
@@ -190,6 +190,32 @@ mod tests {
             *ai = StaticModInt::new(rng.next_range(0..M));
         }
         a
+    }
+
+    #[test]
+    fn test_butterfly_small() {
+        type Mint = StaticModInt<97>;
+        let g = power_2_generator::<{ Mint::MOD }>();
+
+        for h in 1..6 {
+            let rev = (0u8..1 << h)
+                .map(|i| (i.reverse_bits() >> 3) as u128)
+                .collect::<Vec<_>>();
+            for i in 0..1 << h {
+                let mut a = vec![Mint::new(0); 1 << h];
+                a[i] = Mint::new(1);
+                butterfly(&mut a);
+                let b = (0..1 << h)
+                    .map(|j| g.pow(i as u128 * rev[j]))
+                    .collect::<Vec<_>>();
+                assert_eq!(a, b, "h = {h}, i = {i}");
+
+                butterfly_inv(&mut a, true);
+                for (j, aj) in a.iter().enumerate() {
+                    assert_eq!(*aj, Mint::new(if j == i { 1 } else { 0 }));
+                }
+            }
+        }
     }
 
     #[test]
