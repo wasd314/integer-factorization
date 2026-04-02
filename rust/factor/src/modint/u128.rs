@@ -1,8 +1,8 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-type U1 = u16;
-type U0 = u8;
-type I1 = i16;
+type U1 = u128;
+type U0 = u64;
+type I1 = i128;
 
 #[derive(Debug, Clone, Copy)]
 pub struct DynamicModInt {
@@ -244,7 +244,8 @@ impl DynamicModInt {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 pub struct StaticModInt<const M: U1>(U1);
 
-const fn power_2_generator<const M: U1>() -> StaticModInt<M> {
+/// v_2 (M - 1) =: h として，mod M の位数 2^h の正整数
+pub const fn power_2_generator<const M: U1>() -> StaticModInt<M> {
     let mut g = StaticModInt::<M>::one();
     let h = (M - 1).trailing_zeros();
     let e = 1 << (h - 1);
@@ -526,30 +527,6 @@ impl<const M: U1> DivAssign<StaticModInt<M>> for StaticModInt<M> {
 impl<const M: U1> DivAssign<&StaticModInt<M>> for StaticModInt<M> {
     fn div_assign(&mut self, rhs: &StaticModInt<M>) {
         *self = self.div(rhs).expect("should be invertible");
-    }
-}
-
-pub fn butterfly<const M: U1>(a: &mut [StaticModInt<M>]) {
-    let n = a.len();
-    if n <= 1 {
-        return;
-    }
-    let h = n.ilog2();
-    let fore = StaticModInt::<M>::CACHE.fore;
-    for ph in 0..h {
-        let w = 1 << ph;
-        let p = 1 << (h - ph - 1);
-        let mut now = StaticModInt::<M>::one();
-        for s in 0..w {
-            let offset = s << (h - ph);
-            for i in 0..p {
-                let l = a[offset + i];
-                let r = a[offset + i + p] * now;
-                a[offset + i] = l + r;
-                a[offset + i + p] = l - r;
-            }
-            now *= fore[s.trailing_ones() as usize];
-        }
     }
 }
 
