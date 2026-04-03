@@ -239,6 +239,19 @@ impl DynamicModInt {
             Err(d) => Err(d),
         }
     }
+    pub fn batch_inv(&self, rx: &[U1]) -> Result<Vec<U1>, U1> {
+        let n = rx.len();
+        let mut acc = vec![self.one(); n + 1];
+        for i in 0..n {
+            acc[i + 1] = self.mul(acc[i], rx[i]);
+        }
+        let mut inv_acc = vec![self.one(); n + 1];
+        inv_acc[n] = self.inv(*acc.last().unwrap())?;
+        for i in (0..n).rev() {
+            inv_acc[i] = self.mul(inv_acc[i + 1], rx[i]);
+        }
+        Ok((0..n).map(|i| self.mul(acc[i], inv_acc[i + 1])).collect())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
@@ -494,6 +507,8 @@ impl_from!(i: i8, i16, i32, i64, i128);
 
 #[cfg(test)]
 mod tests {
+    use crate::utility::Sfc64;
+
     use super::*;
 
     const fn check_eq<const M: U1>(a: StaticModInt<M>, b: StaticModInt<M>) {
@@ -528,6 +543,44 @@ mod tests {
                 b += 1;
             }
             a += 1;
+        }
+    }
+    #[test]
+    fn test_batch_inv() {
+        let mut rng = Sfc64::new(0);
+        for _ in 0..100 {
+            const M: u128 = 1001001001;
+            let mo = DynamicModInt::new(M);
+            let n = rng.next_range(0..100) as usize;
+            let rxs = rng
+                .next_vector(0..M, n)
+                .into_iter()
+                .map(|x| mo.mr(x))
+                .collect::<Vec<_>>();
+            let Ok(rys) = mo.batch_inv(&rxs) else {
+                continue;
+            };
+            assert_eq!(rxs.len(), rys.len());
+            for (rx, ry) in rxs.into_iter().zip(rys) {
+                assert_eq!(mo.mul(rx, ry), mo.one());
+            }
+        }
+        for _ in 0..100 {
+            const M: u128 = 1001;
+            let mo = DynamicModInt::new(M);
+            let n = rng.next_range(0..100) as usize;
+            let rxs = rng
+                .next_vector(0..M, n)
+                .into_iter()
+                .map(|x| mo.mr(x))
+                .collect::<Vec<_>>();
+            let Ok(rys) = mo.batch_inv(&rxs) else {
+                continue;
+            };
+            assert_eq!(rxs.len(), rys.len());
+            for (rx, ry) in rxs.into_iter().zip(rys) {
+                assert_eq!(mo.mul(rx, ry), mo.one());
+            }
         }
     }
 }
