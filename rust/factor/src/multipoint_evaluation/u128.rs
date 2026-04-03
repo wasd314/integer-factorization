@@ -130,11 +130,10 @@ mod tests {
     }
 
     fn gen_vector<const M: u128>(rng: &mut Sfc64, n: usize) -> Vec<Mint<M>> {
-        let mut a = vec![Mint::new(0); n];
-        for ai in a.iter_mut() {
-            *ai = Mint::new(rng.next_range(0..M));
-        }
-        a
+        rng.next_vector(0..M, n)
+            .into_iter()
+            .map(Mint::new)
+            .collect()
     }
 
     #[test]

@@ -112,6 +112,9 @@ impl Sfc64 {
             }
         }
     }
+    pub fn next_vector(&mut self, rg: impl RangeBounds<u128> + Clone, n: usize) -> Vec<u128> {
+        (0..n).map(|_| self.next_range(rg.clone())).collect()
+    }
 }
 
 /// min i in (0..len) s.t. f(i) == true
