@@ -469,6 +469,29 @@ impl<const M: U1> DivAssign<&StaticModInt<M>> for StaticModInt<M> {
     }
 }
 
+macro_rules! impl_from {
+    (u: $($ts:ty),*) => {
+        $(
+            impl<const M: U1> From<$ts> for StaticModInt<M> {
+                fn from(value: $ts) -> Self {
+                    Self::new((value as u128).rem_euclid(M))
+                }
+            }
+        )*
+    };
+    (i: $($ts:ty),*) => {
+        $(
+            impl<const M: U1> From<$ts> for StaticModInt<M> {
+                fn from(value: $ts) -> Self {
+                    Self::new((value as i128).rem_euclid(M as _) as _)
+                }
+            }
+        )*
+    };
+}
+impl_from!(u: u8, u16, u32, u64, u128);
+impl_from!(i: i8, i16, i32, i64, i128);
+
 #[cfg(test)]
 mod tests {
     use super::*;
