@@ -2,6 +2,7 @@ pub mod ecm;
 pub mod convolution;
 pub mod modint;
 pub mod fps;
+pub mod multipoint_evaluation;
 pub mod pollard_rho;
 pub mod primality;
 pub mod utility;
