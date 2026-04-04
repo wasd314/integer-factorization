@@ -1,7 +1,13 @@
-use std::fmt::Display;
+use std::{
+    collections::VecDeque,
+    fmt::{Debug, Display},
+    iter,
+};
 
 use crate::{
+    convolution::u128::DynamicConvolution,
     modint::u128::{DynamicModInt as Mint, gcd},
+    multipoint_evaluation::u128::DynamicMultipointEvaluation,
     utility::{Sfc64, Sieve, bisect_left},
     wrapper::Factorize,
 };
@@ -114,44 +120,74 @@ impl Curve {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct Ecm {
-    rng: Sfc64,
-    b1: u128,
-    b2: u128,
-    sieve: Sieve,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EcmBound {
+    pub b1: u128,
+    pub b2: u128,
 }
 
-impl Ecm {
-    pub fn new(seed: u64, b1: u128, b2: u128) -> Self {
-        Self {
-            rng: Sfc64::new(seed),
-            b1,
-            b2,
-            sieve: Sieve::new(b1 as _),
-        }
-    }
-    pub fn check_curve(&mut self, mo: Mint, s: u128) -> Option<u128> {
-        let (c, mut point) = match Curve::init_suyama(s, mo) {
-            Ok(t) => t,
-            Err(d) => return Some(d),
-        };
-        // Stage 1
-        for &p in self.sieve.prime.iter() {
-            let mut pe = p;
-            while pe * p < self.b1 {
-                pe *= p;
-            }
-            point = c.scale(point, pe);
-        }
-        let g = gcd(mo.n, point.1);
-        if 1 < g && g < mo.n {
-            return Some(g);
-        }
-        if self.b1 == self.b2 {
-            return None;
-        }
+pub trait BoundStrategy: Clone {
+    /// use `.0` bound for `.1` times
+    fn generate_bound(&self, n: u128) -> impl Iterator<Item = (EcmBound, usize)>;
+}
+pub trait Stage2Strategy {
+    fn check_stage2(
+        &self,
+        bound: EcmBound,
+        mo: Mint,
+        c: &Curve,
+        point: (u128, u128),
+    ) -> Option<u128>;
+}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExponentialBound {
+    initial: EcmBound,
+    rep: usize,
+}
+
+impl ExponentialBound {
+    pub fn new(initial: EcmBound, rep: usize) -> Self {
+        Self { initial, rep }
+    }
+}
+impl BoundStrategy for ExponentialBound {
+    fn generate_bound(&self, _n: u128) -> impl Iterator<Item = (EcmBound, usize)> {
+        iter::repeat(0).scan(self.initial, |acc, _| {
+            let ans = Some((*acc, self.rep));
+            acc.b1 *= 2;
+            acc.b2 *= 2;
+            ans
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Stage1Only;
+
+impl Stage2Strategy for Stage1Only {
+    fn check_stage2(
+        &self,
+        _bound: EcmBound,
+        _mo: Mint,
+        _c: &Curve,
+        _point: (u128, u128),
+    ) -> Option<u128> {
+        None
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckOdd;
+
+impl Stage2Strategy for CheckOdd {
+    fn check_stage2(
+        &self,
+        bound: EcmBound,
+        mo: Mint,
+        c: &Curve,
+        point: (u128, u128),
+    ) -> Option<u128> {
         // Stage 2
         const D: usize = 210;
         const COPRIME_RS: [usize; 48] = [
@@ -159,7 +195,7 @@ impl Ecm {
             101, 103, 107, 109, 113, 121, 127, 131, 137, 139, 143, 149, 151, 157, 163, 167, 169,
             173, 179, 181, 187, 191, 193, 197, 199, 209,
         ];
-        let b1 = self.b1 - self.b1 % D as u128;
+        let b1 = bound.b1 - bound.b1 % D as u128;
         // rem[r] = c.scale(point, b1 + r)
         let mut rem = vec![c.zero(); D * 2];
         rem[1] = c.scale(point, b1 + 1);
@@ -169,7 +205,7 @@ impl Ecm {
             rem[2 * i + 1] = c.add(rem[2 * i - 1], p2, rem[2 * i - 3]);
         }
         let pd = c.scale(point, D as u128);
-        let w2 = self.b2 as usize / D - self.b1 as usize / D;
+        let w2 = bound.b2 as usize / D - bound.b1 as usize / D;
         let mut acc = Vec::with_capacity((w2 + 2) * COPRIME_RS.len());
         acc.push(1);
         for r in COPRIME_RS {
@@ -197,45 +233,136 @@ impl Ecm {
     }
 }
 
-impl Factorize for Ecm {
-    fn find_factor(&mut self, n: u128) -> u128 {
-        let mo = Mint::new(n);
-        let (mut c0, mut c1, mut cn) = (0, 0, 0);
-        loop {
-            for _i in 1usize..=4000 {
-                let s = self.rng.next_range(6..n - 5);
-                if let Some(d) = self.check_curve(mo, s) {
-                    if d == 0 {
-                        c0 += 1;
-                    } else if d == 1 {
-                        c1 += 1;
-                    } else if d == n {
-                        cn += 1;
-                    } else {
-                        eprintln!("[{_i}] found: {d}");
-                        return d;
-                    }
-                }
-                if _i.is_multiple_of(500) {
-                    eprintln!("[{_i}] ({c0}, {c1}, {cn})");
-                }
-            }
-            self.b1 *= 2;
-            self.sieve = Sieve::new(self.b1 as _);
-            self.b2 *= 2;
-            eprintln!(
-                "({c0}, {c1}, {cn}), extended to {}, {}",
-                self.b1, self.b2
-            );
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UseMultiEval;
+
+impl Stage2Strategy for UseMultiEval {
+    fn check_stage2(
+        &self,
+        bound: EcmBound,
+        mo: Mint,
+        c: &Curve,
+        point: (u128, u128),
+    ) -> Option<u128> {
+        let d = bound.b2.isqrt() as usize;
+        let mut baby = vec![c.zero(); d + 1];
+        baby[1] = point;
+        baby[2] = c.double(baby[1]);
+        for i in 3..=d {
+            baby[i] = c.add(baby[i - 1], baby[1], baby[i - 2]);
         }
+        let mut giant = vec![c.zero(); d + 1];
+        giant[1] = baby[d];
+        giant[2] = c.double(giant[1]);
+        for i in 3..=d {
+            giant[i] = c.add(giant[i - 1], giant[1], giant[i - 2]);
+        }
+        let baby = match mo.batch_div(&baby) {
+            Ok(e) => e,
+            Err(d) => {
+                return if 1 < d && d < mo.n { Some(d) } else { None };
+            }
+        };
+        let giant = match mo.batch_div(&giant) {
+            Ok(e) => e,
+            Err(d) => {
+                return if 1 < d && d < mo.n { Some(d) } else { None };
+            }
+        };
+
+        // product of (x - c) for c in baby
+        let f_baby = {
+            let mut q = baby
+                .iter()
+                .map(|c| vec![mo.neg(*c), mo.one()])
+                .collect::<VecDeque<_>>();
+            q.push_back(vec![mo.one()]);
+            while q.len() >= 2
+                && let Some(f1) = q.pop_front()
+                && let Some(f2) = q.pop_front()
+            {
+                q.push_back(mo.convolution_arbitrary(&f1, &f2));
+            }
+            q.pop_front().unwrap()
+        };
+        let vals = match DynamicMultipointEvaluation::new(mo, giant).eval(&f_baby) {
+            Ok(e) => e,
+            Err(d) => {
+                return if 1 < d && d < mo.n { Some(d) } else { None };
+            }
+        };
+        vals.iter().find_map(|&rx| mo.inv(rx).err())
     }
 }
 
-impl Display for Ecm {
+#[derive(Debug, Clone)]
+pub struct Ecm<T, U> {
+    rng: Sfc64,
+    sieve: Sieve,
+    bound_strategy: T,
+    stage2_strategy: U,
+}
+
+impl<T: BoundStrategy, U: Stage2Strategy> Ecm<T, U> {
+    pub fn new(seed: u64, bound_strategy: T, stage2_strategy: U) -> Self {
+        Self {
+            rng: Sfc64::new(seed),
+            sieve: Sieve::new(1),
+            bound_strategy,
+            stage2_strategy,
+        }
+    }
+    pub fn check_curve(&mut self, bound: EcmBound, mo: Mint, s: u128) -> Option<u128> {
+        let (c, mut point) = match Curve::init_suyama(s, mo) {
+            Ok(t) => t,
+            Err(d) => return Some(d),
+        };
+
+        // Stage 1
+        for &p in self.sieve.prime.iter() {
+            let mut pe = p;
+            while pe * p < bound.b1 {
+                pe *= p;
+            }
+            point = c.scale(point, pe);
+        }
+        let g = gcd(mo.n, point.1);
+        if 1 < g && g < mo.n {
+            return Some(g);
+        }
+
+        // Stage 2
+        self.stage2_strategy.check_stage2(bound, mo, &c, point)
+    }
+}
+
+impl<T: BoundStrategy, U: Stage2Strategy> Factorize for Ecm<T, U> {
+    fn find_factor(&mut self, n: u128) -> u128 {
+        let mo = Mint::new(n);
+        for (bound, rep) in self.bound_strategy.clone().generate_bound(n) {
+            if bound.b1 as usize > self.sieve.lpf.len() {
+                self.sieve = Sieve::new(bound.b1 as _)
+            }
+            for _i in 0..rep {
+                let s = self.rng.next_range(6..n - 5);
+                if let Some(d) = self.check_curve(bound, mo, s)
+                    && 1 < d
+                    && d < n
+                {
+                    eprintln!("\tfound at {_i}");
+                    return d;
+                }
+            }
+        }
+        unreachable!()
+    }
+}
+
+impl<T: Debug, U: Debug> Display for Ecm<T, U> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Ecm")
-            .field("b1", &self.b1)
-            .field("b2", &self.b2)
+            .field("bound_strategy", &self.bound_strategy)
+            .field("stage2_strategy", &self.stage2_strategy)
             .finish_non_exhaustive()
     }
 }
