@@ -1,22 +1,21 @@
 use crate::{
-    modint::u128::{DynamicModInt, Modulus, StaticModInt},
+    modint::u128::{DynamicModInt, StaticModInt},
     primality::{is_prime, is_prime_const},
 };
 
-/// v_2 (M - 1) =: h として，mod M の位数 2^h の正整数
-pub const fn power_2_generator(mo: &DynamicModInt) -> u128 {
-    let mut g = mo.one();
-    let h = (mo.n - 1).trailing_zeros();
+/// v_2 (M - 1) =: h として，mod M の位数 2^h の正整数．
+///
+/// M は素数なら存在する．
+pub const fn power_2_generator<const M: u128>() -> StaticModInt<M> {
+    let mut g = StaticModInt::<M>::one();
+    let h = (M - 1).trailing_zeros();
     let e = 1 << (h - 1);
     loop {
-        g = mo.add(g, mo.one());
-        if mo.val_const(mo.pow_const(g, e)) == mo.n - 1 {
+        g = g.add(StaticModInt::one());
+        if g.pow_const(e).val_const() == M - 1 {
             return g;
         }
     }
-}
-pub const fn power_2_generator_static<const M: u128>() -> StaticModInt<M> {
-    StaticModInt::<M>::raw(power_2_generator(&StaticModInt::<M>::MON))
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -30,7 +29,7 @@ impl<const M: u128> ButterflyCache<StaticModInt<M>> {
         // [i]: ord = 2^i
         let mut roots = [StaticModInt::raw(0); u128::BITS as _];
         let mut inv_roots = [StaticModInt::raw(0); u128::BITS as _];
-        let g = power_2_generator_static();
+        let g = power_2_generator::<M>();
         let h = (M - 1).trailing_zeros() as usize;
         roots[h] = g;
         if let Ok(ig) = g.inv_const() {
@@ -537,7 +536,7 @@ impl DynamicConvolution for DynamicModInt {
 
 #[cfg(test)]
 mod tests {
-    use crate::utility::Sfc64;
+    use crate::{modint::u128::Modulus, utility::Sfc64};
 
     use super::*;
 
@@ -551,7 +550,7 @@ mod tests {
     #[test]
     fn test_butterfly_small() {
         type Mint = StaticModInt<97>;
-        let g = power_2_generator_static();
+        let g = power_2_generator::<{ Mint::MOD }>();
 
         for h in 1..6 {
             let rev = (0u8..1 << h)
@@ -661,30 +660,30 @@ mod tests {
 
     #[test]
     fn test_power_2_generator() {
-        assert_eq!(power_2_generator_static::<3>().val(), 2);
-        assert_eq!(power_2_generator_static::<5>().val(), 2);
-        assert_eq!(power_2_generator_static::<7>().val(), 6);
-        assert_eq!(power_2_generator_static::<11>().val(), 10);
-        assert_eq!(power_2_generator_static::<13>().val(), 5);
-        assert_eq!(power_2_generator_static::<17>().val(), 3);
-        assert_eq!(power_2_generator_static::<19>().val(), 18);
-        assert_eq!(power_2_generator_static::<23>().val(), 22);
-        assert_eq!(power_2_generator_static::<29>().val(), 12);
-        assert_eq!(power_2_generator_static::<31>().val(), 30);
-        assert_eq!(power_2_generator_static::<37>().val(), 6);
-        assert_eq!(power_2_generator_static::<41>().val(), 3);
-        assert_eq!(power_2_generator_static::<43>().val(), 42);
-        assert_eq!(power_2_generator_static::<47>().val(), 46);
-        assert_eq!(power_2_generator_static::<53>().val(), 23);
-        assert_eq!(power_2_generator_static::<59>().val(), 58);
-        assert_eq!(power_2_generator_static::<61>().val(), 11);
-        assert_eq!(power_2_generator_static::<67>().val(), 66);
-        assert_eq!(power_2_generator_static::<71>().val(), 70);
-        assert_eq!(power_2_generator_static::<73>().val(), 10);
-        assert_eq!(power_2_generator_static::<79>().val(), 78);
-        assert_eq!(power_2_generator_static::<83>().val(), 82);
-        assert_eq!(power_2_generator_static::<89>().val(), 12);
-        assert_eq!(power_2_generator_static::<97>().val(), 19);
+        assert_eq!(power_2_generator::<3>().val(), 2);
+        assert_eq!(power_2_generator::<5>().val(), 2);
+        assert_eq!(power_2_generator::<7>().val(), 6);
+        assert_eq!(power_2_generator::<11>().val(), 10);
+        assert_eq!(power_2_generator::<13>().val(), 5);
+        assert_eq!(power_2_generator::<17>().val(), 3);
+        assert_eq!(power_2_generator::<19>().val(), 18);
+        assert_eq!(power_2_generator::<23>().val(), 22);
+        assert_eq!(power_2_generator::<29>().val(), 12);
+        assert_eq!(power_2_generator::<31>().val(), 30);
+        assert_eq!(power_2_generator::<37>().val(), 6);
+        assert_eq!(power_2_generator::<41>().val(), 3);
+        assert_eq!(power_2_generator::<43>().val(), 42);
+        assert_eq!(power_2_generator::<47>().val(), 46);
+        assert_eq!(power_2_generator::<53>().val(), 23);
+        assert_eq!(power_2_generator::<59>().val(), 58);
+        assert_eq!(power_2_generator::<61>().val(), 11);
+        assert_eq!(power_2_generator::<67>().val(), 66);
+        assert_eq!(power_2_generator::<71>().val(), 70);
+        assert_eq!(power_2_generator::<73>().val(), 10);
+        assert_eq!(power_2_generator::<79>().val(), 78);
+        assert_eq!(power_2_generator::<83>().val(), 82);
+        assert_eq!(power_2_generator::<89>().val(), 12);
+        assert_eq!(power_2_generator::<97>().val(), 19);
     }
 
     #[test]
