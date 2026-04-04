@@ -252,6 +252,16 @@ impl DynamicModInt {
         }
         Ok((0..n).map(|i| self.mul(acc[i], inv_acc[i + 1])).collect())
     }
+    pub fn batch_div(&self, r_num_den: &[(U1, U1)]) -> Result<Vec<U1>, U1> {
+        let (num, den): (Vec<_>, Vec<_>) = r_num_den.iter().copied().unzip();
+        let i_den = self.batch_inv(&den)?;
+        let ans = num
+            .into_iter()
+            .zip(i_den)
+            .map(|(x, z)| self.mul(x, z))
+            .collect();
+        Ok(ans)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
