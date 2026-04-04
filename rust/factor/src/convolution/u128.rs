@@ -79,7 +79,7 @@ impl<const M: u128> HaveCache for StaticModInt<M> {
 /// NTT 順変換．
 ///
 /// 入力が natural order のとき，出力は bit-reversal order．
-pub fn butterfly<const M: u128>(a: &mut [StaticModInt<M>]) {
+pub fn ntt<const M: u128>(a: &mut [StaticModInt<M>]) {
     let n = a.len();
     if n <= 1 {
         return;
@@ -106,7 +106,7 @@ pub fn butterfly<const M: u128>(a: &mut [StaticModInt<M>]) {
 /// NTT 逆変換．
 ///
 /// 入力が bit-reversal order のとき，出力は natural order．
-pub fn butterfly_inv<const M: u128>(a: &mut [StaticModInt<M>], divide_n: bool) {
+pub fn ntt_inv<const M: u128>(a: &mut [StaticModInt<M>], divide_n: bool) {
     let n = a.len();
     if n <= 1 {
         return;
@@ -158,12 +158,12 @@ pub fn convolution_proth<const M: u128>(
     let (mut a, mut b) = (a.to_owned(), b.to_owned());
     a.resize(n, StaticModInt::raw(0));
     b.resize(n, StaticModInt::raw(0));
-    butterfly(&mut a);
-    butterfly(&mut b);
+    ntt(&mut a);
+    ntt(&mut b);
     for (a, b) in a.iter_mut().zip(&b) {
         *a *= b;
     }
-    butterfly_inv(&mut a, true);
+    ntt_inv(&mut a, true);
     a.resize(lc, StaticModInt::raw(0));
     a
 }
@@ -268,25 +268,25 @@ pub fn convolution_arbitrary<const M: u128>(
 /// NTT 順変換の転置．
 ///
 /// 入力が natural order のとき，出力は bit-reversal order．
-pub fn butterfly_transpose<const M: u128>(a: &mut [StaticModInt<M>]) {
+pub fn ntt_transpose<const M: u128>(a: &mut [StaticModInt<M>]) {
     let n = a.len();
     if n <= 1 {
         return;
     }
-    butterfly_inv(a, false);
+    ntt_inv(a, false);
     a[1..].reverse();
 }
 
 /// NTT 逆変換の転置．
 ///
 /// 入力が bit-reversal order のとき，出力は natural order．
-pub fn butterfly_inv_transpose<const M: u128>(a: &mut [StaticModInt<M>], divide_n: bool) {
+pub fn ntt_inv_transpose<const M: u128>(a: &mut [StaticModInt<M>], divide_n: bool) {
     let n = a.len();
     if n <= 1 {
         return;
     }
     a[1..].reverse();
-    butterfly(a);
+    ntt(a);
     if divide_n {
         let ni = StaticModInt::new(n as _).inv().unwrap();
         for ai in a.iter_mut() {
@@ -322,12 +322,12 @@ pub fn middle_product_proth<const M: u128>(
     a.reverse();
     a.resize(n, StaticModInt::raw(0));
     c.resize(n, StaticModInt::raw(0));
-    butterfly(&mut a);
-    butterfly(&mut c);
+    ntt(&mut a);
+    ntt(&mut c);
     for (a, c) in a.iter_mut().zip(&c) {
         *a *= c;
     }
-    butterfly_inv(&mut a, true);
+    ntt_inv(&mut a, true);
     a[la - 1..lc].to_owned()
 }
 
@@ -548,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn test_butterfly_small() {
+    fn test_ntt_small() {
         type Mint = StaticModInt<97>;
         let g = power_2_generator::<{ Mint::MOD }>();
 
@@ -559,13 +559,13 @@ mod tests {
             for i in 0..1 << h {
                 let mut a = vec![Mint::new(0); 1 << h];
                 a[i] = Mint::new(1);
-                butterfly(&mut a);
+                ntt(&mut a);
                 let b = (0..1 << h)
                     .map(|j| g.pow(i as u128 * rev[j]))
                     .collect::<Vec<_>>();
                 assert_eq!(a, b, "h = {h}, i = {i}");
 
-                butterfly_inv(&mut a, true);
+                ntt_inv(&mut a, true);
                 for (j, aj) in a.iter().enumerate() {
                     assert_eq!(*aj, Mint::new(if j == i { 1 } else { 0 }));
                 }
@@ -574,7 +574,7 @@ mod tests {
     }
 
     #[test]
-    fn test_butterfly_id() {
+    fn test_ntt_identity() {
         type Mint = StaticModInt<97>;
         let mut rng = Sfc64::new(0);
         for h in 0..6 {
@@ -582,13 +582,13 @@ mod tests {
                 let a: Vec<Mint> = gen_vector(&mut rng, 1 << h);
 
                 let mut a_ = a.clone();
-                butterfly(&mut a_);
-                butterfly_inv(&mut a_, true);
+                ntt(&mut a_);
+                ntt_inv(&mut a_, true);
                 assert_eq!(a_, a);
 
                 let mut a_ = a.clone();
-                butterfly_inv(&mut a_, true);
-                butterfly(&mut a_);
+                ntt_inv(&mut a_, true);
+                ntt(&mut a_);
                 assert_eq!(a_, a);
             }
         }
@@ -687,9 +687,9 @@ mod tests {
     }
 
     #[test]
-    fn check_matrix_butterfly() {
+    fn check_matrix_ntt() {
         type Mint = StaticModInt<97>;
-        // butterfly
+        // ntt
         for h in 1..6 {
             let n = 1 << h;
             // from primal ^ T
@@ -697,7 +697,7 @@ mod tests {
             for i in 0..n {
                 let mut a = vec![Mint::default(); n];
                 a[i] = Mint::new(1);
-                butterfly(&mut a);
+                ntt(&mut a);
                 m_primal[i] = a;
             }
             // from transposed
@@ -705,14 +705,14 @@ mod tests {
             for i in 0..n {
                 let mut a = vec![Mint::default(); n];
                 a[i] = Mint::new(1);
-                butterfly_transpose(&mut a);
+                ntt_transpose(&mut a);
                 for j in 0..n {
                     m_transposed[j][i] = a[j];
                 }
             }
             assert_eq!(m_primal, m_transposed);
         }
-        // butterfly_inv, true
+        // ntt_inv, true
         for h in 1..6 {
             let n = 1 << h;
             // from primal ^ T
@@ -720,7 +720,7 @@ mod tests {
             for i in 0..n {
                 let mut a = vec![Mint::default(); n];
                 a[i] = Mint::new(1);
-                butterfly_inv(&mut a, true);
+                ntt_inv(&mut a, true);
                 m_primal[i] = a;
             }
             // from transposed
@@ -728,14 +728,14 @@ mod tests {
             for i in 0..n {
                 let mut a = vec![Mint::default(); n];
                 a[i] = Mint::new(1);
-                butterfly_inv_transpose(&mut a, true);
+                ntt_inv_transpose(&mut a, true);
                 for j in 0..n {
                     m_transposed[j][i] = a[j];
                 }
             }
             assert_eq!(m_primal, m_transposed);
         }
-        // butterfly_inv, false
+        // ntt_inv, false
         for h in 1..6 {
             let n = 1 << h;
             // from primal ^ T
@@ -743,7 +743,7 @@ mod tests {
             for i in 0..n {
                 let mut a = vec![Mint::default(); n];
                 a[i] = Mint::new(1);
-                butterfly_inv(&mut a, false);
+                ntt_inv(&mut a, false);
                 m_primal[i] = a;
             }
             // from transposed
@@ -751,7 +751,7 @@ mod tests {
             for i in 0..n {
                 let mut a = vec![Mint::default(); n];
                 a[i] = Mint::new(1);
-                butterfly_inv_transpose(&mut a, false);
+                ntt_inv_transpose(&mut a, false);
                 for j in 0..n {
                     m_transposed[j][i] = a[j];
                 }
