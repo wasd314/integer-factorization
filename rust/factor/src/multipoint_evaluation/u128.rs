@@ -1,13 +1,14 @@
 use crate::{
-    convolution::u128::transpose::middle_product_arbitrary, fps::u128::Fps,
-    modint::u128::StaticModInt as Mint,
+    convolution::u128::{DynamicConvolution, middle_product_arbitrary},
+    fps::u128::{DynamicFps, Fps},
+    modint::u128::{DynamicModInt, StaticModInt as Mint},
 };
 
 fn middle_product<const M: u128>(a: &Fps<Mint<M>>, c: &Fps<Mint<M>>) -> Fps<Mint<M>> {
     Fps::new(middle_product_arbitrary(a.as_slice(), c.as_slice()))
 }
 
-/// 一般の標本点列に対する multipoint evaluation.
+/// 一般の標本点列に対する Multipoint evaluation.
 ///
 /// 標本点列ごとに前計算を行う．
 pub struct MultipointEvaluation<T> {
@@ -84,6 +85,95 @@ impl<const M: u128> MultipointEvaluation<Mint<M>> {
     }
 }
 
+/// 一般の標本点列に対する Multipoint evaluation（実行時任意 mod）．
+///
+/// 標本点列ごとに前計算を行う．
+pub struct DynamicMultipointEvaluation {
+    df: DynamicFps,
+    m0: usize,
+    m: usize,
+    sub_prods: Vec<Vec<u128>>,
+}
+
+impl DynamicMultipointEvaluation {
+    /// 標本点列ごとの前計算を行う．
+    ///
+    /// # Complexity
+    ///
+    /// 標本点数`points.len()`を M として，Θ(M (log M)^2) 時間．
+    pub fn new(mo: DynamicModInt, mut points: Vec<u128>) -> Self {
+        let m0 = points.len();
+        let m = m0.next_power_of_two();
+        points.reserve(m - m0);
+        points.resize(m, 0);
+        let points = points;
+
+        // subproduct tree
+        let mut sub_prods = vec![vec![]; m * 2];
+        for i in 0..m {
+            // sub_prods[m + i] = Fps::new(vec![-points[i], Mint::new(1)]);
+            sub_prods[m + i] = vec![mo.neg(points[i]), mo.one()];
+        }
+        let df = DynamicFps::new(mo);
+        for i in (1..m).rev() {
+            sub_prods[i] = df.mul(&sub_prods[i * 2], &sub_prods[i * 2 + 1]);
+        }
+        Self {
+            df,
+            m0,
+            m,
+            sub_prods,
+        }
+    }
+
+    /// Multipoint evaluation 本計算．
+    ///
+    /// 多項式 `f` を受け取り，`f` に `X = points[i]` を代入したときの値を列挙する．
+    ///
+    /// # Complexity
+    ///
+    /// `f.len()`を N, L := M + N として，Θ(M (log M)^2 + L log L) 時間．
+    pub fn eval(&self, f: &[u128]) -> Result<Vec<u128>, u128> {
+        let m0 = self.m0;
+        let m = self.m;
+        let sub_prods = &self.sub_prods;
+
+        let n = f.len();
+        if m0 == 0 {
+            return Ok(vec![]);
+        }
+        if n == 0 {
+            return Ok(vec![0; m0]);
+        }
+        let f = {
+            let mut t1 = sub_prods[1].clone();
+            t1.reverse();
+            let inv_rt1 = self.df.inv_until(&t1, n)?;
+            let f_ = self.df.prefix(f, m + n - 1);
+            let mut f_ = self.df.0.middle_product_arbitrary(&inv_rt1, &f_);
+            f_.reverse();
+            f_
+        };
+
+        // UpTree^T
+        let mut dp = vec![vec![]; 2 * m];
+        dp[1] = f;
+        for i in 1..m {
+            let g1 = self
+                .df
+                .0
+                .middle_product_arbitrary(&sub_prods[2 * i + 1], &dp[i]);
+            self.df.add_assign(&mut dp[2 * i], &g1);
+            let g0 = self
+                .df
+                .0
+                .middle_product_arbitrary(&sub_prods[2 * i], &dp[i]);
+            self.df.add_assign(&mut dp[2 * i + 1], &g0);
+        }
+        Ok(dp[m..m + m0].iter().map(|e| e[0]).collect())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utility::Sfc64;
@@ -109,7 +199,7 @@ mod tests {
         let me = MultipointEvaluation::new(p.to_owned());
         let found = me.eval(f);
         if found != expected {
-            eprintln!("f: {}", show(f));
+            eprintln!("f: {}", show(f.as_slice()));
             eprintln!("p: {}", show(p));
             eprintln!("found: {}", show(&found));
             eprintln!("expected: {}", show(&expected));
@@ -155,6 +245,28 @@ mod tests {
             let n = rng.next_range(0..20) as usize;
             let p = gen_vector(&mut rng, n);
             verify_general::<M>(&f, &p);
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn general_stress_dynamic() {
+        let mut rng = Sfc64::new(0);
+        for mo in [
+            DynamicModInt::new(998244353),
+            DynamicModInt::new(1001001001),
+        ] {
+            for _ in 0..1000 {
+                let n = rng.next_range(0..20) as usize;
+                let f = rng.next_vector(0..mo.n, n);
+                let n = rng.next_range(0..20) as usize;
+                let p = rng.next_vector(0..mo.n, n);
+                let df = DynamicFps(mo);
+                let expected = p.iter().map(|p| df.eval(&f, *p)).collect::<Vec<_>>();
+                if let Ok(found) = DynamicMultipointEvaluation::new(mo, p.clone()).eval(&f) {
+                    assert_eq!(found, expected);
+                }
+            }
         }
     }
 }

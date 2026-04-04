@@ -1,6 +1,9 @@
-use std::ops::{Add, AddAssign, Deref, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign};
 
-use crate::{convolution::u128::convolution_arbitrary, modint::u128::StaticModInt as Mint};
+use crate::{
+    convolution::u128::{DynamicConvolution, convolution_arbitrary},
+    modint::u128::{DynamicModInt, StaticModInt as Mint},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Fps<T>(Vec<T>);
@@ -298,11 +301,67 @@ impl<T, U: Into<T>> From<Vec<U>> for Fps<T> {
     }
 }
 
-impl<T> Deref for Fps<T> {
-    type Target = [T];
+#[derive(Debug, Clone, Copy)]
+pub struct DynamicFps(pub DynamicModInt);
 
-    fn deref(&self) -> &Self::Target {
-        self.as_slice()
+impl DynamicFps {
+    pub fn new(mo: DynamicModInt) -> Self {
+        Self(mo)
+    }
+    /// 係数列末尾の 0 を全て落とす
+    pub fn shrink(&self, f: &mut Vec<u128>) {
+        while f.last() == Some(&0) {
+            f.pop();
+        }
+    }
+    pub fn prefix(&self, f: &[u128], len: usize) -> Vec<u128> {
+        if len <= f.len() {
+            f[..len].to_owned()
+        } else {
+            let mut f = f.to_owned();
+            f.resize(len, 0);
+            f
+        }
+    }
+    pub fn add_assign(&self, a: &mut Vec<u128>, b: &[u128]) {
+        if a.len() < b.len() {
+            a.resize(b.len(), 0);
+        }
+        for (i, bi) in b.iter().enumerate() {
+            a[i] = self.0.add(a[i], *bi);
+        }
+    }
+    pub fn mul(&self, a: &[u128], b: &[u128]) -> Vec<u128> {
+        self.0.convolution_arbitrary(a, b)
+    }
+    pub fn neg(&self, a: &[u128]) -> Vec<u128> {
+        a.iter().map(|x| self.0.neg(*x)).collect()
+    }
+    pub fn eval(&self, f: &[u128], rc: u128) -> u128 {
+        f.iter()
+            .rev()
+            .fold(0, |acc, fi| self.0.add(self.0.mul(acc, rc), *fi))
+    }
+}
+
+impl DynamicFps {
+    pub fn inv_until(&self, f: &[u128], len: usize) -> Result<Vec<u128>, u128> {
+        assert!(!f.is_empty());
+        let g0 = self.0.inv(f[0])?;
+        let mut g = vec![g0];
+        while g.len() < len {
+            let m = g.len();
+            let f_ = self.prefix(f, m * 2);
+            let mut h = self.mul(&self.neg(&f_), &g);
+            h[0] = self.0.add(h[0], self.0.mr(2));
+            g = self.mul(&g, &h);
+            g.resize(m * 2, 0);
+        }
+        g.resize(len, 0);
+        Ok(g)
+    }
+    pub fn inv(&self, f: &[u128]) -> Result<Vec<u128>, u128> {
+        self.inv_until(f, f.len())
     }
 }
 
