@@ -187,7 +187,9 @@ pub fn convolution_naive<const M: u128>(
     c
 }
 
-/// convolution_proth の入出力から StaticModInt を剥がしたもの
+/// convolution_proth の入出力から StaticModInt を剥がしたもの．
+///
+/// 入出力とも Montgomery 表現ではない．
 pub fn convolution_raw<const M: u128>(a: &[u128], b: &[u128]) -> Vec<u128> {
     if a.is_empty() || b.is_empty() {
         return vec![];
@@ -330,7 +332,9 @@ pub fn middle_product_proth<const M: u128>(
     a[la - 1..lc].to_owned()
 }
 
-/// middle_product_proth の入出力から StaticModInt を剥がしたもの
+/// middle_product_proth の入出力から StaticModInt を剥がしたもの．
+///
+/// 入出力とも Montgomery 表現ではない．
 pub fn middle_product_raw<const M: u128>(a: &[u128], c: &[u128]) -> Vec<u128> {
     let a = a
         .iter()
@@ -408,6 +412,127 @@ pub fn middle_product_arbitrary<const M: u128>(
                 + StaticModInt::new(M1) * StaticModInt::new(M2) * StaticModInt::new(x3)
         })
         .collect()
+}
+
+pub trait DynamicConvolution {
+    /// 愚直な畳み込み．
+    ///
+    /// 入出力とも Montgomery 表現．
+    fn convolution_naive(&self, a: &[u128], b: &[u128]) -> Vec<u128>;
+    /// 任意 mod 畳み込み．
+    ///
+    /// 入出力とも Montgomery 表現．
+    fn convolution_arbitrary(&self, a: &[u128], b: &[u128]) -> Vec<u128>;
+    /// 任意 mod Middle product．
+    ///
+    /// 入出力とも Montgomery 表現．
+    fn middle_product_arbitrary(&self, a: &[u128], c: &[u128]) -> Vec<u128>;
+}
+
+impl DynamicConvolution for DynamicModInt {
+    fn convolution_naive(&self, a: &[u128], b: &[u128]) -> Vec<u128> {
+        if a.is_empty() || b.is_empty() {
+            return vec![];
+        }
+        let (la, lb) = (a.len(), b.len());
+        let lc = la + lb - 1;
+        let mut c = vec![0; lc];
+        for (i, ai) in a.iter().enumerate() {
+            for (j, bj) in b.iter().enumerate() {
+                c[i + j] = self.add(c[i + j], self.mul(*ai, *bj));
+            }
+        }
+        c
+    }
+
+    fn convolution_arbitrary(&self, a: &[u128], b: &[u128]) -> Vec<u128> {
+        if a.is_empty() || b.is_empty() {
+            return vec![];
+        }
+        const M1: u128 = 7 << 120 | 1;
+        const M2: u128 = 51 << 119 | 1;
+        const M3: u128 = 71 << 119 | 1;
+        type Mint2 = StaticModInt<M2>;
+        type Mint3 = StaticModInt<M3>;
+
+        const M1_INV_M2: Mint2 = match Mint2::new_const(M1).inv_const() {
+            Ok(e) => e,
+            Err(_) => panic!(),
+        };
+        const M1M2_INV_M3: Mint3 = match Mint3::new_const(M1)
+            .mul_const(Mint3::new_const(M2))
+            .inv_const()
+        {
+            Ok(e) => e,
+            Err(_) => panic!(),
+        };
+
+        let a = a.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
+        let b = b.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
+        let c1 = convolution_raw::<M1>(&a, &b);
+        let c2 = convolution_raw::<M2>(&a, &b);
+        let c3 = convolution_raw::<M3>(&a, &b);
+
+        c1.into_iter()
+            .zip(c2)
+            .zip(c3)
+            .map(|((c1, c2), c3)| {
+                let x1 = c1;
+                let x2 = ((Mint2::new(c2) - Mint2::new(x1)) * M1_INV_M2).val();
+                let x3 = ((Mint3::new(c3) - Mint3::new(x1) - Mint3::new(x2) * Mint3::new(M1))
+                    * M1M2_INV_M3)
+                    .val();
+                let (x1, x2, x3) = (self.mr(x1), self.mr(x2), self.mr(x3));
+                let (m1, m2) = (self.mr(M1), self.mr(M2));
+                self.add(
+                    self.add(x1, self.mul(m1, x2)),
+                    self.mul(m1, self.mul(m2, x3)),
+                )
+            })
+            .collect()
+    }
+    fn middle_product_arbitrary(&self, a: &[u128], c: &[u128]) -> Vec<u128> {
+        const M1: u128 = 7 << 120 | 1;
+        const M2: u128 = 51 << 119 | 1;
+        const M3: u128 = 71 << 119 | 1;
+        type Mint2 = StaticModInt<M2>;
+        type Mint3 = StaticModInt<M3>;
+
+        const M1_INV_M2: Mint2 = match Mint2::new_const(M1).inv_const() {
+            Ok(e) => e,
+            Err(_) => panic!(),
+        };
+        const M1M2_INV_M3: Mint3 = match Mint3::new_const(M1)
+            .mul_const(Mint3::new_const(M2))
+            .inv_const()
+        {
+            Ok(e) => e,
+            Err(_) => panic!(),
+        };
+        let a = a.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
+        let c = c.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
+        let c1 = middle_product_raw::<M1>(&a, &c);
+        let c2 = middle_product_raw::<M2>(&a, &c);
+        let c3 = middle_product_raw::<M3>(&a, &c);
+
+        c1.into_iter()
+            .zip(c2)
+            .zip(c3)
+            .map(|((c1, c2), c3)| {
+                let x1 = c1;
+                let x2 = ((Mint2::new(c2) - Mint2::new(x1)) * M1_INV_M2).val();
+                let x3 = ((Mint3::new(c3) - Mint3::new(x1) - Mint3::new(x2) * Mint3::new(M1))
+                    * M1M2_INV_M3)
+                    .val();
+                let (x1, x2, x3) = (self.mr(x1), self.mr(x2), self.mr(x3));
+                let (m1, m2) = (self.mr(M1), self.mr(M2));
+                self.add(
+                    self.add(x1, self.mul(m1, x2)),
+                    self.mul(m1, self.mul(m2, x3)),
+                )
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -501,6 +626,36 @@ mod tests {
             let n2 = rng.next_range(0..100) as usize;
             let b: Vec<Mint> = gen_vector(&mut rng, n2);
             assert_eq!(convolution_arbitrary(&a, &b), convolution_naive(&a, &b));
+        }
+    }
+
+    #[test]
+    fn test_dynamic_convolution_arbitrary() {
+        let mut rng = Sfc64::new(0);
+        for mo in [
+            DynamicModInt::new(998244353),
+            DynamicModInt::new(1001001001),
+            DynamicModInt::new(1 << 126 | 1),
+            DynamicModInt::new((1 << 127) - 1),
+        ] {
+            for _ in 0..100 {
+                let n1 = rng.next_range(0..100) as usize;
+                let a = rng
+                    .next_vector(0..mo.n, n1)
+                    .into_iter()
+                    .map(|x| mo.mr(x))
+                    .collect::<Vec<_>>();
+                let n2 = rng.next_range(0..100) as usize;
+                let b = rng
+                    .next_vector(0..mo.n, n2)
+                    .into_iter()
+                    .map(|x| mo.mr(x))
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    mo.convolution_arbitrary(&a, &b),
+                    mo.convolution_naive(&a, &b)
+                );
+            }
         }
     }
 
