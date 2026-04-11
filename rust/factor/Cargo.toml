@@ -1,0 +1,13 @@
+[package]
+name = "factor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+
+[lib]
+name = "factor"
+
+[[bin]]
+name = "factor"
+path = "src/bin/main.rs"
