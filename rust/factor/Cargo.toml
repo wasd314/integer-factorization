@@ -8,6 +8,20 @@ edition = "2024"
 [lib]
 name = "factor"
 
+[dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
+
+[profile.bench]
+opt-level = 2
+
 [[bin]]
 name = "factor"
 path = "src/bin/main.rs"
+
+[[bench]]
+name = "ecm_param"
+harness = false
+
+[[bench]]
+name = "compare_all"
+harness = false
