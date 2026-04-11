@@ -143,20 +143,21 @@ pub trait Stage2Strategy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExponentialBound {
     initial: EcmBound,
+    rate: u128,
     rep: usize,
 }
 
 impl ExponentialBound {
-    pub fn new(initial: EcmBound, rep: usize) -> Self {
-        Self { initial, rep }
+    pub fn new(initial: EcmBound, rate: u128, rep: usize) -> Self {
+        Self { initial, rate, rep }
     }
 }
 impl BoundStrategy for ExponentialBound {
     fn generate_bound(&self, _n: u128) -> impl Iterator<Item = (EcmBound, usize)> {
         iter::repeat(0).scan(self.initial, |acc, _| {
             let ans = Some((*acc, self.rep));
-            acc.b1 *= 2;
-            acc.b2 *= 2;
+            acc.b1 *= self.rate;
+            acc.b2 *= self.rate;
             ans
         })
     }
