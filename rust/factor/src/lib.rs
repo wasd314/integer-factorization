@@ -5,6 +5,7 @@ pub mod fps;
 pub mod multipoint_evaluation;
 pub mod pollard_rho;
 pub mod primality;
+pub mod perfect_power;
 pub mod utility;
 pub mod wrapper;
 
