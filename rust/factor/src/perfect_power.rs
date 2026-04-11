@@ -1,5 +1,5 @@
-/// floor(y^{1/n}).
-pub fn nth_root_floor(y: u128, n: u32) -> u128 {
+/// for n > 0, floor(y^{1/n}).
+pub const fn nth_root_floor(y: u128, n: u32) -> u128 {
     assert!(n > 0);
     if n == 1 || y <= 1 {
         return y;
@@ -7,14 +7,16 @@ pub fn nth_root_floor(y: u128, n: u32) -> u128 {
     if n == 2 {
         return y.isqrt();
     }
-    // x < 2 <==> y < 2^n <==> y.ilog2() < n, x >= 1.
+    // x < 2 <==> y < 2^n, x >= 1.
     if y.unbounded_shr(n) == 0 {
         return 1;
     }
     // y >= 2^n, n >= 3
     let mut x = 0;
     // y < 2^B ==> x < 2^ceil(B/n)
-    for i in (0..u128::BITS.div_ceil(n)).rev() {
+    let mut i = u128::BITS.div_ceil(n);
+    while i > 0 {
+        i -= 1;
         let nx: u128 = x | 1 << i;
         if let Some(ny) = nx.checked_pow(n)
             && ny <= y
@@ -26,13 +28,16 @@ pub fn nth_root_floor(y: u128, n: u32) -> u128 {
 }
 
 /// `Some((x, n))` s.t. x^n == y, x >= 2, n >= 2, largest n; else `None`.
-pub fn find_perfect_power(y: u128) -> Option<(u128, u32)> {
+pub const fn find_perfect_power(y: u128) -> Option<(u128, u32)> {
     if y < 4 {
         return None;
     }
-    for n in (2..=u128::BITS).rev() {
+    // for n in (2..=u128::BITS).rev() {...}
+    let mut n = y.ilog2() + 1;
+    while n > 2 {
+        n -= 1;
         let x = nth_root_floor(y, n);
-        if x.checked_pow(n) == Some(y) {
+        if matches!(x.checked_pow(n), Some(ny) if ny == y) {
             return Some((x, n));
         }
     }
@@ -46,16 +51,15 @@ mod tests {
     /// check x^n <= y < (x+1)^n.
     fn check_nth_root(y: u128, n: u32) {
         let x = nth_root_floor(y, n);
-        let compare = |t1: (u128, bool), t2: (u128, bool)| t1.1.cmp(&t2.1).then(t1.0.cmp(&t2.0));
         assert!(
-            compare(x.overflowing_pow(n), (y, false)).is_le(),
+            x.checked_pow(n).is_some_and(|ny| ny <= y),
             "{:?} => {x}, {:?}",
             (y, n),
             x.overflowing_pow(n)
         );
         if x < !0 {
             assert!(
-                compare((y, false), (x + 1).overflowing_pow(n)).is_lt(),
+                (x + 1).checked_pow(n).is_none_or(|ny| ny > y),
                 "{:?} => {x}, {:?}",
                 (y, n),
                 (x + 1).overflowing_pow(n)
