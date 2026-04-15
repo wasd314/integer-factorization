@@ -1,10 +1,26 @@
 use crate::primality::is_prime;
 
 pub trait Factorize {
+    /// `n` の非自明な約数を探す．
+    ///
+    /// `n` は 3 以上の奇数が渡されると仮定して実装して良い．
+    fn try_find_factor(&mut self, n: u128) -> Option<u128> {
+        Some(self.find_factor(n))
+    }
+
     /// `n` の非自明な約数を返す．
     ///
     /// `n` は 3 以上の奇数が渡されると仮定して実装して良い．
-    fn find_factor(&mut self, n: u128) -> u128;
+    fn find_factor(&mut self, n: u128) -> u128 {
+        loop {
+            if let Some(d) = self.try_find_factor(n)
+                && 1 < d
+                && d < n
+            {
+                return d;
+            }
+        }
+    }
 
     /// `n` の素因数を 1 つ返す．
     ///
