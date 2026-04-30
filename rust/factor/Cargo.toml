@@ -25,3 +25,7 @@ harness = false
 [[bench]]
 name = "compare_all"
 harness = false
+
+[[bench]]
+name = "perfect_power"
+harness = false
