@@ -9,7 +9,7 @@ use factor::{
 
 fn compare_all(c: &mut Criterion) {
     let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
-    let mut group = c.benchmark_group("ecm_param");
+    let mut group = c.benchmark_group("compare_all");
     group.plot_config(plot_config);
 
     let b1 = 10000;
