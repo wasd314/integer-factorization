@@ -350,10 +350,11 @@ impl<T: BoundStrategy, U: Stage2Strategy> Factorize for Ecm<T, U> {
                     && 1 < d
                     && d < n
                 {
-                    eprintln!("\tfound at {_i}");
+                    // eprintln!("\tfound at {_i}");
                     return d;
                 }
             }
+            // eprintln!("\textend");
         }
         unreachable!()
     }
