@@ -174,6 +174,64 @@ impl DynamicMultipointEvaluation {
     }
 }
 
+/// 一般の標本点列に対する Multipoint evaluation.
+pub struct MultipointEvaluationNaive<T> {
+    points: Vec<T>,
+}
+
+impl<const M: u128> MultipointEvaluationNaive<Mint<M>> {
+    /// 標本点列ごとの前計算を行う．
+    ///
+    /// # Complexity
+    ///
+    /// Θ(1) 時間．
+    pub fn new(points: Vec<Mint<M>>) -> Self {
+        Self { points }
+    }
+
+    /// Multipoint evaluation 本計算．
+    ///
+    /// 多項式 `f` を受け取り，`f` に `X = points[i]` を代入したときの値を列挙する．
+    ///
+    /// # Complexity
+    ///
+    /// `f.len()`を N として，Θ(N M) 時間．
+    pub fn eval(&self, f: &Fps<Mint<M>>) -> Vec<Mint<M>> {
+        self.points.iter().map(|&x| f.eval(x)).collect()
+    }
+}
+
+/// 一般の標本点列に対する Multipoint evaluation（実行時任意 mod）．
+///
+/// 標本点列ごとに前計算を行う．
+pub struct DynamicMultipointEvaluationNaive {
+    df: DynamicFps,
+    points: Vec<u128>,
+}
+
+impl DynamicMultipointEvaluationNaive {
+    /// 標本点列ごとの前計算を行う．
+    ///
+    /// # Complexity
+    ///
+    /// Θ(1) 時間．
+    pub fn new(mo: DynamicModInt, points: Vec<u128>) -> Self {
+        let df = DynamicFps::new(mo);
+        Self { df, points }
+    }
+
+    /// Multipoint evaluation 本計算．
+    ///
+    /// 多項式 `f` を受け取り，`f` に `X = points[i]` を代入したときの値を列挙する．
+    ///
+    /// # Complexity
+    ///
+    /// `f.len()`を N, L := M + N として，Θ(M (log M)^2 + L log L) 時間．
+    pub fn eval(&self, f: &[u128]) -> Result<Vec<u128>, u128> {
+        Ok(self.points.iter().map(|&x| self.df.eval(f, x)).collect())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::utility::Sfc64;
@@ -256,10 +314,9 @@ mod tests {
                 let f = rng.next_vector(0..mo.n, n);
                 let n = rng.next_range(0..20) as usize;
                 let p = rng.next_vector(0..mo.n, n);
-                let df = DynamicFps(mo);
-                let expected = p.iter().map(|p| df.eval(&f, *p)).collect::<Vec<_>>();
+                let expected = DynamicMultipointEvaluationNaive::new(mo, p.clone()).eval(&f);
                 if let Ok(found) = DynamicMultipointEvaluation::new(mo, p.clone()).eval(&f) {
-                    assert_eq!(found, expected);
+                    assert_eq!(Ok(found), expected);
                 }
             }
         }
