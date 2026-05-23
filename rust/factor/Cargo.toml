@@ -29,3 +29,7 @@ harness = false
 [[bench]]
 name = "perfect_power"
 harness = false
+
+[[bench]]
+name = "multipoint_evaluation"
+harness = false
