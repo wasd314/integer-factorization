@@ -28,7 +28,7 @@ impl<T> Fps<T> {
     pub fn reverse(&mut self) {
         self.0.reverse();
     }
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator {
         self.0.iter()
     }
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
