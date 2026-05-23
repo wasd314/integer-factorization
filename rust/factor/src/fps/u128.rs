@@ -73,6 +73,7 @@ impl<const M: u128> Fps<Mint<M>> {
         }
     }
 
+    /// 形式的冪級数としての乗法逆元 mod X^`len`
     pub fn inv_until(&self, len: usize) -> Self {
         let Ok(g0) = self[0].inv() else {
             panic!("self[0] should be invertible");
@@ -89,6 +90,11 @@ impl<const M: u128> Fps<Mint<M>> {
     }
     pub fn inv(&self) -> Self {
         self.inv_until(self.len())
+    }
+
+    /// 多項式として `X = a` を代入した値
+    pub fn eval(&self, a: Mint<M>) -> Mint<M> {
+        self.iter().rfold(Mint::raw(0), |acc, &fi| fi + a * acc)
     }
 }
 
