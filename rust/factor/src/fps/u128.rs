@@ -348,10 +348,9 @@ impl DynamicFps {
     pub fn neg(&self, a: &[u128]) -> Vec<u128> {
         a.iter().map(|x| self.0.neg(*x)).collect()
     }
-    pub fn eval(&self, f: &[u128], rc: u128) -> u128 {
+    pub fn eval(&self, f: &[u128], ra: u128) -> u128 {
         f.iter()
-            .rev()
-            .fold(0, |acc, fi| self.0.add(self.0.mul(acc, rc), *fi))
+            .rfold(0, |acc, &fi| self.0.add(fi, self.0.mul(ra, acc)))
     }
 }
 
