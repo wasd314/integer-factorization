@@ -187,15 +187,8 @@ mod tests {
             .join(" ")
     }
 
-    fn eval_naive<const M: u128>(f: &Fps<Mint<M>>, a: Mint<M>) -> Mint<M> {
-        f.as_slice()
-            .iter()
-            .rev()
-            .fold(Mint::raw(0), |acc, fi| acc * a + fi)
-    }
-
     fn verify_general<const M: u128>(f: &Fps<Mint<M>>, p: &[Mint<M>]) {
-        let expected: Vec<_> = p.iter().map(|pi| eval_naive(f, *pi)).collect();
+        let expected: Vec<_> = p.iter().map(|pi| f.eval(*pi)).collect();
         let me = MultipointEvaluation::new(p.to_owned());
         let found = me.eval(f);
         if found != expected {
