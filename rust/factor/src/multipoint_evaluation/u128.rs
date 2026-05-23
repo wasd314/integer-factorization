@@ -217,6 +217,8 @@ mod tests {
         verify_general(&Fps::from(vec![4]), &p);
         verify_general(&Fps::default(), &p);
         verify_general(&Fps::from(vec![1, 2, 3, 4]), &p);
+        verify_general(&(1..20).collect(), &p);
+        verify_general(&(1..20).rev().collect(), &p);
     }
 
     fn gen_vector<const M: u128>(rng: &mut Sfc64, n: usize) -> Vec<Mint<M>> {

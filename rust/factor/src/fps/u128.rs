@@ -306,6 +306,11 @@ impl<T, U: Into<T>> From<Vec<U>> for Fps<T> {
         Self::new(value.into_iter().map(U::into).collect())
     }
 }
+impl<T, U: Into<T>> FromIterator<U> for Fps<T> {
+    fn from_iter<I: IntoIterator<Item = U>>(iter: I) -> Self {
+        Self::new(iter.into_iter().map(U::into).collect())
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct DynamicFps(pub DynamicModInt);
