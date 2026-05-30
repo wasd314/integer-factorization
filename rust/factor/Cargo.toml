@@ -33,3 +33,7 @@ harness = false
 [[bench]]
 name = "multipoint_evaluation"
 harness = false
+
+[[bench]]
+name = "diff_product"
+harness = false
