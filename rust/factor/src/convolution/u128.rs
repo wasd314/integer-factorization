@@ -1,5 +1,6 @@
 use crate::{
-    modint::u128::{DynamicModInt, StaticModInt},
+    garner::u128::{Garner3, M1, M2, M3},
+    modint::u128::{DynamicModInt, Modulus, StaticModInt},
     primality::{is_prime, is_prime_const},
 };
 
@@ -225,43 +226,16 @@ pub fn convolution_arbitrary<const M: u128>(
             return convolution_proth(a, b);
         }
     }
-    const M1: u128 = 7 << 120 | 1;
-    const M2: u128 = 51 << 119 | 1;
-    const M3: u128 = 71 << 119 | 1;
-    type Mint2 = StaticModInt<M2>;
-    type Mint3 = StaticModInt<M3>;
-
-    const M1_INV_M2: Mint2 = match Mint2::new_const(M1).inv_const() {
-        Ok(e) => e,
-        Err(_) => panic!(),
-    };
-    const M1M2_INV_M3: Mint3 = match Mint3::new_const(M1)
-        .mul_const(Mint3::new_const(M2))
-        .inv_const()
-    {
-        Ok(e) => e,
-        Err(_) => panic!(),
-    };
 
     let a = a.iter().map(|e| e.val()).collect::<Vec<_>>();
     let b = b.iter().map(|e| e.val()).collect::<Vec<_>>();
     let c1 = convolution_raw::<M1>(&a, &b);
     let c2 = convolution_raw::<M2>(&a, &b);
     let c3 = convolution_raw::<M3>(&a, &b);
-
-    c1.into_iter()
-        .zip(c2)
-        .zip(c3)
-        .map(|((c1, c2), c3)| {
-            let x1 = c1;
-            let x2 = ((Mint2::new(c2) - Mint2::new(x1)) * M1_INV_M2).val();
-            let x3 = ((Mint3::new(c3) - Mint3::new(x1) - Mint3::new(x2) * Mint3::new(M1))
-                * M1M2_INV_M3)
-                .val();
-            StaticModInt::new(x1)
-                + StaticModInt::new(M1) * StaticModInt::new(x2)
-                + StaticModInt::new(M1) * StaticModInt::new(M2) * StaticModInt::new(x3)
-        })
+    let g: Garner3 = Garner3::new(StaticModInt::<M>::MON);
+    g.reconstruct_vector(c1, c2, c3)
+        .into_iter()
+        .map(StaticModInt::raw)
         .collect()
 }
 
@@ -374,42 +348,16 @@ pub fn middle_product_arbitrary<const M: u128>(
         }
     }
 
-    const M1: u128 = 7 << 120 | 1;
-    const M2: u128 = 51 << 119 | 1;
-    const M3: u128 = 71 << 119 | 1;
-    type Mint2 = StaticModInt<M2>;
-    type Mint3 = StaticModInt<M3>;
-
-    const M1_INV_M2: Mint2 = match Mint2::new_const(M1).inv_const() {
-        Ok(e) => e,
-        Err(_) => panic!(),
-    };
-    const M1M2_INV_M3: Mint3 = match Mint3::new_const(M1)
-        .mul_const(Mint3::new_const(M2))
-        .inv_const()
-    {
-        Ok(e) => e,
-        Err(_) => panic!(),
-    };
     let a = a.iter().map(|e| e.val()).collect::<Vec<_>>();
     let c = c.iter().map(|e| e.val()).collect::<Vec<_>>();
     let c1 = middle_product_raw::<M1>(&a, &c);
     let c2 = middle_product_raw::<M2>(&a, &c);
     let c3 = middle_product_raw::<M3>(&a, &c);
 
-    c1.into_iter()
-        .zip(c2)
-        .zip(c3)
-        .map(|((c1, c2), c3)| {
-            let x1 = c1;
-            let x2 = ((Mint2::new(c2) - Mint2::new(x1)) * M1_INV_M2).val();
-            let x3 = ((Mint3::new(c3) - Mint3::new(x1) - Mint3::new(x2) * Mint3::new(M1))
-                * M1M2_INV_M3)
-                .val();
-            StaticModInt::new(x1)
-                + StaticModInt::new(M1) * StaticModInt::new(x2)
-                + StaticModInt::new(M1) * StaticModInt::new(M2) * StaticModInt::new(x3)
-        })
+    let g: Garner3 = Garner3::new(StaticModInt::<M>::MON);
+    g.reconstruct_vector(c1, c2, c3)
+        .into_iter()
+        .map(StaticModInt::raw)
         .collect()
 }
 
@@ -448,23 +396,6 @@ impl DynamicConvolution for DynamicModInt {
         if a.is_empty() || b.is_empty() {
             return vec![];
         }
-        const M1: u128 = 7 << 120 | 1;
-        const M2: u128 = 51 << 119 | 1;
-        const M3: u128 = 71 << 119 | 1;
-        type Mint2 = StaticModInt<M2>;
-        type Mint3 = StaticModInt<M3>;
-
-        const M1_INV_M2: Mint2 = match Mint2::new_const(M1).inv_const() {
-            Ok(e) => e,
-            Err(_) => panic!(),
-        };
-        const M1M2_INV_M3: Mint3 = match Mint3::new_const(M1)
-            .mul_const(Mint3::new_const(M2))
-            .inv_const()
-        {
-            Ok(e) => e,
-            Err(_) => panic!(),
-        };
 
         let a = a.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
         let b = b.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
@@ -472,65 +403,18 @@ impl DynamicConvolution for DynamicModInt {
         let c2 = convolution_raw::<M2>(&a, &b);
         let c3 = convolution_raw::<M3>(&a, &b);
 
-        c1.into_iter()
-            .zip(c2)
-            .zip(c3)
-            .map(|((c1, c2), c3)| {
-                let x1 = c1;
-                let x2 = ((Mint2::new(c2) - Mint2::new(x1)) * M1_INV_M2).val();
-                let x3 = ((Mint3::new(c3) - Mint3::new(x1) - Mint3::new(x2) * Mint3::new(M1))
-                    * M1M2_INV_M3)
-                    .val();
-                let (x1, x2, x3) = (self.mr(x1), self.mr(x2), self.mr(x3));
-                let (m1, m2) = (self.mr(M1), self.mr(M2));
-                self.add(
-                    self.add(x1, self.mul(m1, x2)),
-                    self.mul(m1, self.mul(m2, x3)),
-                )
-            })
-            .collect()
+        let g: Garner3 = Garner3::new(*self);
+        g.reconstruct_vector(c1, c2, c3)
     }
     fn middle_product_arbitrary(&self, a: &[u128], c: &[u128]) -> Vec<u128> {
-        const M1: u128 = 7 << 120 | 1;
-        const M2: u128 = 51 << 119 | 1;
-        const M3: u128 = 71 << 119 | 1;
-        type Mint2 = StaticModInt<M2>;
-        type Mint3 = StaticModInt<M3>;
-
-        const M1_INV_M2: Mint2 = match Mint2::new_const(M1).inv_const() {
-            Ok(e) => e,
-            Err(_) => panic!(),
-        };
-        const M1M2_INV_M3: Mint3 = match Mint3::new_const(M1)
-            .mul_const(Mint3::new_const(M2))
-            .inv_const()
-        {
-            Ok(e) => e,
-            Err(_) => panic!(),
-        };
         let a = a.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
         let c = c.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
         let c1 = middle_product_raw::<M1>(&a, &c);
         let c2 = middle_product_raw::<M2>(&a, &c);
         let c3 = middle_product_raw::<M3>(&a, &c);
 
-        c1.into_iter()
-            .zip(c2)
-            .zip(c3)
-            .map(|((c1, c2), c3)| {
-                let x1 = c1;
-                let x2 = ((Mint2::new(c2) - Mint2::new(x1)) * M1_INV_M2).val();
-                let x3 = ((Mint3::new(c3) - Mint3::new(x1) - Mint3::new(x2) * Mint3::new(M1))
-                    * M1M2_INV_M3)
-                    .val();
-                let (x1, x2, x3) = (self.mr(x1), self.mr(x2), self.mr(x3));
-                let (m1, m2) = (self.mr(M1), self.mr(M2));
-                self.add(
-                    self.add(x1, self.mul(m1, x2)),
-                    self.mul(m1, self.mul(m2, x3)),
-                )
-            })
-            .collect()
+        let g: Garner3 = Garner3::new(*self);
+        g.reconstruct_vector(c1, c2, c3)
     }
 }
 
