@@ -366,6 +366,10 @@ pub trait DynamicConvolution {
     ///
     /// 入出力とも Montgomery 表現．
     fn convolution_naive(&self, a: &[u128], b: &[u128]) -> Vec<u128>;
+    /// Karatsuba 法を用いた任意 mod 畳み込み．
+    ///
+    /// 入出力とも Montgomery 表現．
+    fn convolution_karatsuba(&self, a: &[u128], b: &[u128]) -> Vec<u128>;
     /// 任意 mod 畳み込み．
     ///
     /// 入出力とも Montgomery 表現．
@@ -390,6 +394,58 @@ impl DynamicConvolution for DynamicModInt {
             }
         }
         c
+    }
+
+    fn convolution_karatsuba(&self, a: &[u128], b: &[u128]) -> Vec<u128> {
+        if a.is_empty() || b.is_empty() {
+            return vec![];
+        }
+        let (a, b) = if a.len() > b.len() { (b, a) } else { (a, b) };
+        if b.len() == 1 {
+            return vec![self.mul(a[0], b[0])];
+        }
+        // a.len() <= b.len()
+        let n = b.len().div_ceil(2);
+        let cl = a.len() + b.len() - 1;
+        if a.len() <= n {
+            let mut c0 = self.convolution_karatsuba(a, &b[..n]);
+            let c1 = self.convolution_karatsuba(a, &b[n..]);
+            c0.resize(cl, 0);
+            for (i, e) in c1.into_iter().enumerate() {
+                c0[n + i] = self.add(c0[n + i], e);
+            }
+            c0
+        } else {
+            let mut c0 = self.convolution_karatsuba(&a[..n], &b[..n]);
+            let c2 = self.convolution_karatsuba(&a[n..], &b[n..]);
+            let mut da = a[..n].to_owned();
+            for (i, e) in a[n..].iter().enumerate() {
+                da[i] = self.add(da[i], *e);
+            }
+            let mut db = b[..n].to_owned();
+            for (i, e) in b[n..].iter().enumerate() {
+                db[i] = self.add(db[i], *e);
+            }
+            let mut c1 = self.convolution_karatsuba(&da, &db);
+            c1.resize(c1.len().max(c0.len()).max(c2.len()), 0);
+            // c1 -= c0
+            for (i, e) in c0.iter().enumerate() {
+                c1[i] = self.sub(c1[i], *e);
+            }
+            // c1 -= c2
+            for (i, e) in c2.iter().enumerate() {
+                c1[i] = self.sub(c1[i], *e);
+            }
+            // total
+            c0.resize(cl, 0);
+            for (i, e) in c1.iter().enumerate() {
+                c0[n + i] = self.add(c0[n + i], *e);
+            }
+            for (i, e) in c2.iter().enumerate() {
+                c0[n * 2 + i] = self.add(c0[n * 2 + i], *e);
+            }
+            c0
+        }
     }
 
     fn convolution_arbitrary(&self, a: &[u128], b: &[u128]) -> Vec<u128> {
@@ -536,6 +592,10 @@ mod tests {
                     .collect::<Vec<_>>();
                 assert_eq!(
                     mo.convolution_arbitrary(&a, &b),
+                    mo.convolution_naive(&a, &b)
+                );
+                assert_eq!(
+                    mo.convolution_karatsuba(&a, &b),
                     mo.convolution_naive(&a, &b)
                 );
             }
