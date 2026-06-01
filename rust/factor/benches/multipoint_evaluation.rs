@@ -28,7 +28,7 @@ fn compare_eval(c: &mut Criterion) {
     let mo = DynamicModInt::new(M);
     let set_size = |est| if est < 1.0 { 100 } else { 20 };
 
-    for ln in 1..=20 {
+    for ln in 10..=14 {
         let n = 1 << ln;
         let est_fast = 0.1 * (n as f64 / 10f64.powf(3.5));
         let est_naive = 0.1 * (n as f64 / 10f64.powf(3.5)).powi(2);
