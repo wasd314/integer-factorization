@@ -37,3 +37,7 @@ harness = false
 [[bench]]
 name = "diff_product"
 harness = false
+
+[[bench]]
+name = "convolution"
+harness = false
