@@ -278,12 +278,15 @@ pub fn ntt_inv_transpose<const M: u128>(a: &mut [StaticModInt<M>], divide_n: boo
 ///
 /// # Constraints
 ///
-/// - la > 0
-/// - la ≦ lc
+/// - la == 0, or
+/// - 0 < la ≦ lc
 pub fn middle_product_proth<const M: u128>(
     a: &[StaticModInt<M>],
     c: &[StaticModInt<M>],
 ) -> Vec<StaticModInt<M>> {
+    if c.is_empty() {
+        return vec![];
+    }
     let (la, lc) = (a.len(), c.len());
     assert!(0 < la && la <= lc);
     let n = lc.next_power_of_two();
@@ -374,6 +377,15 @@ pub trait DynamicConvolution {
     ///
     /// 入出力とも Montgomery 表現．
     fn convolution_arbitrary(&self, a: &[u128], b: &[u128]) -> Vec<u128>;
+
+    /// 愚直な畳み込み．
+    ///
+    /// 入出力とも Montgomery 表現．
+    fn middle_product_naive(&self, a: &[u128], c: &[u128]) -> Vec<u128>;
+    /// Karatsuba 法を用いた任意 mod 畳み込み．
+    ///
+    /// 入出力とも Montgomery 表現．
+    fn middle_product_karatsuba(&self, a: &[u128], c: &[u128]) -> Vec<u128>;
     /// 任意 mod Middle product．
     ///
     /// 入出力とも Montgomery 表現．
@@ -395,22 +407,21 @@ impl DynamicConvolution for DynamicModInt {
         }
         c
     }
-
     fn convolution_karatsuba(&self, a: &[u128], b: &[u128]) -> Vec<u128> {
         if a.is_empty() || b.is_empty() {
             return vec![];
         }
-        let (a, b) = if a.len() > b.len() { (b, a) } else { (a, b) };
-        if b.len() == 1 {
-            return vec![self.mul(a[0], b[0])];
+        let (a, b) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+        // here, a.len() <= b.len()
+        if a.len() <= 16 {
+            return self.convolution_naive(a, b);
         }
-        // a.len() <= b.len()
         let n = b.len().div_ceil(2);
-        let cl = a.len() + b.len() - 1;
+        let lc = a.len() + b.len() - 1;
         if a.len() <= n {
             let mut c0 = self.convolution_karatsuba(a, &b[..n]);
             let c1 = self.convolution_karatsuba(a, &b[n..]);
-            c0.resize(cl, 0);
+            c0.resize(lc, 0);
             for (i, e) in c1.into_iter().enumerate() {
                 c0[n + i] = self.add(c0[n + i], e);
             }
@@ -427,7 +438,6 @@ impl DynamicConvolution for DynamicModInt {
                 db[i] = self.add(db[i], *e);
             }
             let mut c1 = self.convolution_karatsuba(&da, &db);
-            c1.resize(c1.len().max(c0.len()).max(c2.len()), 0);
             // c1 -= c0
             for (i, e) in c0.iter().enumerate() {
                 c1[i] = self.sub(c1[i], *e);
@@ -437,7 +447,7 @@ impl DynamicConvolution for DynamicModInt {
                 c1[i] = self.sub(c1[i], *e);
             }
             // total
-            c0.resize(cl, 0);
+            c0.resize(lc, 0);
             for (i, e) in c1.iter().enumerate() {
                 c0[n + i] = self.add(c0[n + i], *e);
             }
@@ -447,10 +457,9 @@ impl DynamicConvolution for DynamicModInt {
             c0
         }
     }
-
     fn convolution_arbitrary(&self, a: &[u128], b: &[u128]) -> Vec<u128> {
-        if a.is_empty() || b.is_empty() {
-            return vec![];
+        if a.len().min(b.len()) <= 512 {
+            return self.convolution_karatsuba(a, b);
         }
 
         let a = a.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
@@ -462,7 +471,87 @@ impl DynamicConvolution for DynamicModInt {
         let g: Garner3 = Garner3::new(*self);
         g.reconstruct_vector(c1, c2, c3)
     }
+
+    fn middle_product_naive(&self, a: &[u128], c: &[u128]) -> Vec<u128> {
+        if c.is_empty() {
+            return vec![];
+        }
+        let (la, lc) = (a.len(), c.len());
+        assert!(0 < la && la <= lc + 1, "{la}, {lc}");
+        let lb = lc + 1 - la;
+        let mut b = vec![0; lb];
+        for (i, ai) in a.iter().enumerate() {
+            for (j, bj) in b.iter_mut().enumerate() {
+                *bj = self.add(*bj, self.mul(*ai, c[i + j]));
+            }
+        }
+        b
+    }
+    fn middle_product_karatsuba(&self, a: &[u128], c: &[u128]) -> Vec<u128> {
+        if c.is_empty() {
+            return vec![];
+        }
+        let (la, lc) = (a.len(), c.len());
+        assert!(0 < la && la <= lc);
+        let lb = lc + 1 - la;
+        if la.min(lb) <= 16 {
+            return self.middle_product_naive(a, c);
+        }
+        let n = la.max(lb).div_ceil(2);
+        if la <= n {
+            let mut b0 = self.middle_product_karatsuba(a, &c[..la + n - 1]);
+            let b1 = self.middle_product_karatsuba(a, &c[n..]);
+            b0.resize(lb, 0);
+            for (i, e) in b1.iter().enumerate() {
+                b0[n + i] = *e;
+            }
+            b0
+        } else if lb <= n {
+            let mut b0 = self.middle_product_karatsuba(&a[..n], &c[..lb + n - 1]);
+            let b1 = self.middle_product_karatsuba(&a[n..], &c[n..]);
+            for (i, e) in b1.iter().enumerate() {
+                b0[i] = *e;
+            }
+            b0
+        } else {
+            let mut da = a[..n].to_owned();
+            for (i, e) in a[n..].iter().enumerate() {
+                da[i] = self.add(da[i], *e);
+            }
+            let mut c2 = c[n * 2..].to_owned();
+            let mut c0 = c[..n * 2 - 1].to_owned();
+            let c1 = &c[n..n * 3 - 1];
+            // c0 -= c1
+            for (i, e) in c1.iter().enumerate() {
+                c0[i] = self.sub(c0[i], *e);
+            }
+            // c2 -= c1
+            for (i, e) in c2.iter_mut().enumerate() {
+                *e = self.sub(*e, c1[i]);
+            }
+            let db = self.middle_product_karatsuba(&da, c1);
+            let mut b0 = self.middle_product_karatsuba(&a[..n], &c0);
+            let b1 = self.middle_product_karatsuba(&a[n..], &c2);
+            b0.resize(lb, 0);
+            for (i, e) in b1.iter().enumerate() {
+                b0[n + i] = self.add(b0[n + i], *e);
+            }
+            // b0 += db
+            for (i, e) in db.iter().enumerate() {
+                b0[i] = self.add(b0[i], *e);
+            }
+            // b1 += db
+            for (i, e) in db[..b1.len()].iter().enumerate() {
+                b0[n + i] = self.add(b0[n + i], *e);
+            }
+            b0
+        }
+    }
     fn middle_product_arbitrary(&self, a: &[u128], c: &[u128]) -> Vec<u128> {
+        if a.len().min(c.len().saturating_sub(a.len())) <= 512 {
+            return self.middle_product_karatsuba(a, c);
+        }
+
         let a = a.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
         let c = c.iter().map(|&rx| self.val(rx)).collect::<Vec<_>>();
         let c1 = middle_product_raw::<M1>(&a, &c);
@@ -577,14 +666,14 @@ mod tests {
             DynamicModInt::new(1 << 126 | 1),
             DynamicModInt::new((1 << 127) - 1),
         ] {
-            for _ in 0..100 {
-                let n1 = rng.next_range(0..100) as usize;
+            for _ in 0..200 {
+                let n1 = rng.next_range(0..50) as usize;
                 let a = rng
                     .next_vector(0..mo.n, n1)
                     .into_iter()
                     .map(|x| mo.mr(x))
                     .collect::<Vec<_>>();
-                let n2 = rng.next_range(0..100) as usize;
+                let n2 = rng.next_range(0..50) as usize;
                 let b = rng
                     .next_vector(0..mo.n, n2)
                     .into_iter()
@@ -598,6 +687,31 @@ mod tests {
                     mo.convolution_karatsuba(&a, &b),
                     mo.convolution_naive(&a, &b)
                 );
+            }
+            for _ in 0..200 {
+                let lc = rng.next_range(0..50);
+                let la = rng.next_range(if lc == 0 { 0..=50 } else { 1..=lc }) as usize;
+                let a = rng
+                    .next_vector(0..mo.n, la)
+                    .into_iter()
+                    .map(|x| mo.mr(x))
+                    .collect::<Vec<_>>();
+                let c = rng
+                    .next_vector(0..mo.n, lc as _)
+                    .into_iter()
+                    .map(|x| mo.mr(x))
+                    .collect::<Vec<_>>();
+                assert_eq!(
+                    mo.middle_product_arbitrary(&a, &c),
+                    mo.middle_product_naive(&a, &c),
+                );
+                assert_eq!(
+                    mo.middle_product_karatsuba(&a, &c),
+                    mo.middle_product_naive(&a, &c)
+                );
+                if lc != 0 {
+                    // let lb = lc as usize + 1 - la;
+                }
             }
         }
     }
