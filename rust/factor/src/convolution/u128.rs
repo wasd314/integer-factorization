@@ -278,7 +278,7 @@ pub fn ntt_inv_transpose<const M: u128>(a: &mut [StaticModInt<M>], divide_n: boo
 ///
 /// # Constraints
 ///
-/// - la == 0, or
+/// - lc == 0, or
 /// - 0 < la ≦ lc
 pub fn middle_product_proth<const M: u128>(
     a: &[StaticModInt<M>],
@@ -337,8 +337,8 @@ pub fn middle_product_raw<const M: u128>(a: &[u128], c: &[u128]) -> Vec<u128> {
 ///
 /// # Constraints
 ///
-/// - la > 0
-/// - la ≦ lc
+/// - lc == 0, or
+/// - 0 < la ≦ lc
 pub fn middle_product_arbitrary<const M: u128>(
     a: &[StaticModInt<M>],
     c: &[StaticModInt<M>],
@@ -378,17 +378,32 @@ pub trait DynamicConvolution {
     /// 入出力とも Montgomery 表現．
     fn convolution_arbitrary(&self, a: &[u128], b: &[u128]) -> Vec<u128>;
 
-    /// 愚直な畳み込み．
+    /// 愚直なMiddle product．
     ///
     /// 入出力とも Montgomery 表現．
+    ///
+    /// # Constraints
+    ///
+    /// - lc == 0, or
+    /// - 0 < la ≦ lc
     fn middle_product_naive(&self, a: &[u128], c: &[u128]) -> Vec<u128>;
-    /// Karatsuba 法を用いた任意 mod 畳み込み．
+    /// Karatsuba 法を用いた任意 mod Middle product．
     ///
     /// 入出力とも Montgomery 表現．
+    ///
+    /// # Constraints
+    ///
+    /// - lc == 0, or
+    /// - 0 < la ≦ lc
     fn middle_product_karatsuba(&self, a: &[u128], c: &[u128]) -> Vec<u128>;
     /// 任意 mod Middle product．
     ///
     /// 入出力とも Montgomery 表現．
+    ///
+    /// # Constraints
+    ///
+    /// - lc == 0, or
+    /// - 0 < la ≦ lc
     fn middle_product_arbitrary(&self, a: &[u128], c: &[u128]) -> Vec<u128>;
 }
 
