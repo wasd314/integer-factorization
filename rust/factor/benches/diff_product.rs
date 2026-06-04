@@ -17,9 +17,14 @@ fn diff_product(c: &mut Criterion) {
     const M: u128 = 7 << 120 | 1;
     let mo = DynamicModInt::new(M);
     let set_size = |est| if est < 1.0 { 100 } else { 20 };
-
-    for ln in 9..=14 {
-        let n = 1 << ln;
+    let ns = {
+        let mut ns = vec![];
+        ns.extend((9..=14).map(|i| 1 << i));
+        ns.extend([1400, 3600, 11000]);
+        ns.sort();
+        ns
+    };
+    for n in ns {
         let est_fast = 0.1 * (n as f64 / 10f64.powf(3.5));
         let est_naive = 0.1 * (n as f64 / 10f64.powf(3.5)).powi(2);
 
@@ -42,9 +47,7 @@ fn diff_product(c: &mut Criterion) {
                 }
                 q.pop_front().unwrap()
             };
-            b.iter(|| {
-                DynamicMultipointEvaluation::new(mo, giant.clone()).eval(&f_baby)
-            });
+            b.iter(|| DynamicMultipointEvaluation::new(mo, giant.clone()).eval(&f_baby));
         });
         group.bench_function(BenchmarkId::new("fast", n), |b| {
             let baby = rng.next_vector(0..mo.n, n);
@@ -69,7 +72,8 @@ fn diff_product(c: &mut Criterion) {
             });
         });
 
-        if est_naive < 20.0 {
+        // if est_naive < 20.0
+        {
             group.sample_size(set_size(est_naive));
             group.bench_function(BenchmarkId::new("naive", n), |b| {
                 let baby = rng.next_vector(0..mo.n, n);
